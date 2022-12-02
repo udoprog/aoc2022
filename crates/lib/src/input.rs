@@ -49,6 +49,7 @@ impl From<Infallible> for Error {
 #[derive(Debug)]
 enum ErrorKind {
     NotInteger,
+    NotByte,
     IntegerOverflow,
     System(io::Error),
 }
@@ -57,6 +58,7 @@ impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ErrorKind::NotInteger => write!(f, "not an integer"),
+            ErrorKind::NotByte => write!(f, "not a byte"),
             ErrorKind::IntegerOverflow => write!(f, "integer overflow"),
             ErrorKind::System(error) => error.fmt(f),
         }
@@ -282,3 +284,22 @@ integer!(u32);
 integer!(u64);
 integer!(i32);
 integer!(i64);
+
+impl<'a, R> FromInput<'a, R> for u8
+where
+    R: io::Read,
+{
+    fn peek(p: &mut Input<'a, R>) -> Result<bool, Error> {
+        Ok(p.read_at(0)?.is_some())
+    }
+
+    fn from_input(p: &mut Input<'a, R>) -> Result<Self, Error> {
+        let b = match p.read_at(0)? {
+            Some(b) => b,
+            _ => return Err(Error::new(p.path, p.pos, ErrorKind::NotByte)),
+        };
+
+        p.step();
+        Ok(b)
+    }
+}
