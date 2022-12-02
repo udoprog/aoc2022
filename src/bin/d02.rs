@@ -8,29 +8,11 @@ fn main() -> Result<()> {
     let mut part1 = 0;
     let mut part2 = 0;
 
-    for (a, b) in &input {
-        let b1 = match (a, b) {
-            ('A', 'Z') | ('B', 'X') | ('C', 'Y') => 0,
-            ('A', 'X') | ('B', 'Y') | ('C', 'Z') => 3,
-            ('A', 'Y') | ('B', 'Z') | ('C', 'X') | _ => 6,
-        };
-
-        let s1 = match b {
-            'X' => 1,
-            'Y' => 2,
-            'Z' | _ => 3,
-        };
-
-        let b2 = (s1 - 1) * 3;
-
-        let s2 = match (a, b) {
-            ('A', 'Y') | ('B', 'X') | ('C', 'Z') => 1,
-            ('A', 'Z') | ('B', 'Y') | ('C', 'X') => 2,
-            ('A', 'X') | ('B', 'Z') | ('C', 'Y') | _ => 3,
-        };
-
-        part1 += b1 + s1;
-        part2 += b2 + s2;
+    for (a, b) in input {
+        // Discovered numerical relationship after mangling the match statements
+        // a bit:
+        part1 += (2 - (a - b + 1).rem_euclid(3)) * 3 + b + 1;
+        part2 += b * 3 + (a + b - 1).rem_euclid(3) + 1;
     }
 
     assert_eq!(part1, 13682);
@@ -39,7 +21,7 @@ fn main() -> Result<()> {
 }
 
 /// Parse input lines.
-fn parse(path: &str) -> Result<Vec<(char, char)>> {
+fn parse(path: &str) -> Result<Vec<(i32, i32)>> {
     let path = path.as_ref();
     let reader = File::open(path)?;
     let mut input = Input::new(path, reader);
@@ -48,8 +30,16 @@ fn parse(path: &str) -> Result<Vec<(char, char)>> {
 
     while let Some(a) = input.try_next::<u8>()? {
         let b = input.next::<u8>()?;
-        output.push((a as char, b as char));
+        output.push((to_move(a), to_move(b)));
     }
 
     Ok(output)
+}
+
+fn to_move(v: u8) -> i32 {
+    match v {
+        b'X' | b'A' => 0,
+        b'Y' | b'B' => 1,
+        _ => 2,
+    }
 }
