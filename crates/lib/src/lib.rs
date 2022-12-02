@@ -1,6 +1,3 @@
-mod buf;
-pub use self::buf::Buf;
-
 mod input;
 pub use self::input::{FromInput, Input, InputError, LineCol};
 
@@ -18,19 +15,30 @@ macro_rules! map {
 
         impl $crate::FromInput for $out {
             #[inline]
-            fn peek(p: &mut $crate::Input<'_>) -> Result<bool, $crate::InputError> {
+            fn peek(p: &$crate::Input) -> bool {
                 <$ty as $crate::FromInput>::peek(p)
             }
 
             #[inline]
-            fn from_input(p: &mut $crate::Input<'_>) -> Result<Self, $crate::InputError> {
+            fn from_input(p: &mut $crate::Input) -> Result<Self, $crate::InputError> {
                 let value = <$ty as $crate::FromInput>::from_input(p)?;
 
-                match (|$value| -> Result<$out, $crate::macro_support::Error> { $block })(value) {
+                match (|$value: $ty| -> Result<$out, $crate::macro_support::Error> { $block })(
+                    value,
+                ) {
                     Ok(value) => Ok(value),
                     Err(e) => Err($crate::InputError::any(p.path(), p.pos(), e)),
                 }
             }
         }
     };
+}
+
+/// Prepare an input processor.
+#[macro_export]
+macro_rules! input {
+    ($path:literal) => {{
+        let string = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", $path));
+        Input::new($path, string)
+    }};
 }

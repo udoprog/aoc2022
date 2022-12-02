@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use lib::Input;
 
 fn main() -> Result<()> {
-    let mut totals = parse("inputs/d01.txt")?;
+    let mut totals = parse()?;
     totals.sort();
 
     let top3: u32 = totals.iter().rev().take(3).sum();
@@ -14,8 +14,8 @@ fn main() -> Result<()> {
 }
 
 /// Parse input lines.
-fn parse(path: &str) -> Result<[u32; 4]> {
-    let mut input = Input::new(path)?;
+fn parse() -> Result<[u32; 4]> {
+    let mut input = lib::input!("inputs/d01.txt");
     input.set_whitespace(true);
 
     let mut output = [0; 4];
