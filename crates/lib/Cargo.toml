@@ -2,3 +2,6 @@
 name = "lib"
 version = "0.0.0"
 edition = "2021"
+
+[dependencies]
+anyhow = { version = "1.0.66", features = ["backtrace"] }

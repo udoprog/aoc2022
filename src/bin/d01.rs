@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
 use lib::Input;
-use std::fs::File;
 
 fn main() -> Result<()> {
     let mut totals = parse("inputs/d01.txt")?;
@@ -16,9 +15,7 @@ fn main() -> Result<()> {
 
 /// Parse input lines.
 fn parse(path: &str) -> Result<[u32; 4]> {
-    let path = path.as_ref();
-    let reader = File::open(path)?;
-    let mut input = Input::new(path, reader);
+    let mut input = Input::new(path)?;
     input.set_whitespace(true);
 
     let mut output = [0; 4];
