@@ -1,5 +1,4 @@
-use anyhow::{anyhow, Result};
-use lib::Input;
+use lib::prelude::*;
 
 fn main() -> Result<()> {
     let mut totals = parse()?;
@@ -15,7 +14,7 @@ fn main() -> Result<()> {
 
 /// Parse input lines.
 fn parse() -> Result<[u32; 4]> {
-    let mut input = lib::input!("inputs/d01.txt");
+    let mut input = lib::input!("d01.txt");
     input.set_whitespace(true);
 
     let mut output = [0; 4];

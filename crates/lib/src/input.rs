@@ -51,17 +51,19 @@ impl From<Infallible> for InputError {
 #[derive(Debug)]
 enum ErrorKind {
     NotInteger,
+    NotFloat,
     NotChar,
-    IntegerOverflow,
+    NotLine,
     Boxed(anyhow::Error),
 }
 
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorKind::NotInteger => write!(f, "not an integer"),
+            ErrorKind::NotInteger => write!(f, "not an integer or integer overflow"),
+            ErrorKind::NotFloat => write!(f, "not a float"),
             ErrorKind::NotChar => write!(f, "not a character"),
-            ErrorKind::IntegerOverflow => write!(f, "integer overflow"),
+            ErrorKind::NotLine => write!(f, "not a line"),
             ErrorKind::Boxed(error) => error.fmt(f),
         }
     }
@@ -92,6 +94,7 @@ impl fmt::Display for LineCol {
 }
 
 /// Helper to parse input from a file.
+#[derive(Debug)]
 pub struct Input {
     /// Path being parsed.
     path: &'static str,
@@ -107,6 +110,7 @@ pub struct Input {
 
 impl Input {
     /// Construct a new input processor.
+    #[doc(hidden)]
     pub fn new(path: &'static str, string: &'static str) -> Self {
         Self {
             path,
@@ -115,6 +119,11 @@ impl Input {
             pos: LineCol::default(),
             whitespace: false,
         }
+    }
+
+    /// Remaining string of the current input.
+    pub fn as_str(&self) -> &'static str {
+        self.string.get(self.index..).unwrap_or_default()
     }
 
     /// Get the current input path.
@@ -165,11 +174,27 @@ impl Input {
             self.consume_whitespace();
         }
 
-        if !T::peek(self) {
+        if self.peek().is_none() {
             return Ok(None);
         }
 
         Ok(Some(T::from_input(self)?))
+    }
+
+    /// Get the next line of input.
+    #[inline]
+    pub fn next_line(&mut self) -> Option<&'static str> {
+        let string = self.string.get(self.index..)?;
+
+        let Some(end) = memchr::memchr(b'\n', string.as_bytes()) else {
+            self.index = self.string.len();
+            self.pos.column += string.chars().count();
+            return Some(string);
+        };
+
+        self.pos.new_line();
+        self.index = self.index.saturating_add(end.saturating_add(1));
+        string.get(..end)
     }
 
     /// Test if we're at eof.
@@ -219,8 +244,6 @@ impl Input {
 
 /// A value that can be parsed from input.
 pub trait FromInput: Sized {
-    fn peek(p: &Input) -> bool;
-
     /// Parse a value from a given input.
     fn from_input(p: &mut Input) -> Result<Self>;
 }
@@ -233,11 +256,6 @@ macro_rules! tuple {
             $($rest: FromInput,)*
         {
             #[inline]
-            fn peek(p: &Input) -> bool {
-                <$first>::peek(p)
-            }
-
-            #[inline]
             fn from_input(p: &mut Input) -> Result<Self> {
                 let $first_id = p.next::<$first>()?;
                 $(let $rest_id = p.next::<$rest>()?;)*
@@ -247,37 +265,25 @@ macro_rules! tuple {
     }
 }
 
+#[rustfmt::skip]
 macro_rules! integer {
-    ($ty:ty) => {
+    ($ty:ty, $error:ident) => {
         impl FromInput for $ty {
-            fn peek(p: &Input) -> bool {
-                matches!(p.peek(), Some('0'..='9'))
-            }
-
             fn from_input(p: &mut Input) -> Result<Self> {
-                const ZERO: $ty = '0' as $ty;
-
-                let mut n = match p.peek() {
-                    Some(c @ '0'..='9') => c as $ty - ZERO,
-                    _ => return Err(InputError::new(p.path, p.pos, ErrorKind::NotInteger)),
-                };
-
-                p.step();
+                let start = p.index;
+                let pos = p.pos;
 
                 while let Some(c) = p.peek() {
-                    if !matches!(c, '0'..='9') {
+                    if !matches!(c, '-' | '.' | '0'..='9') {
                         break;
                     }
 
-                    let digit = c as $ty - ZERO;
-
-                    let Some(update) = n.checked_mul(10).and_then(|n| n.checked_add(digit)) else {
-                        return Err(InputError::new(p.path, p.pos, ErrorKind::IntegerOverflow));
-                    };
-
-                    n = update;
                     p.step();
                 }
+
+                let Some(n) = p.string.get(start..p.index).and_then(|s| str::parse(s).ok()) else {
+                    return Err(InputError::new(p.path, pos, ErrorKind::$error));
+                };
 
                 Ok(n)
             }
@@ -290,16 +296,21 @@ tuple!(A a, B b);
 tuple!(A a, B b, C c);
 tuple!(A a, B b, C c, D d);
 
-integer!(u32);
-integer!(u64);
-integer!(i32);
-integer!(i64);
+integer!(u8, NotInteger);
+integer!(u16, NotInteger);
+integer!(u32, NotInteger);
+integer!(u64, NotInteger);
+integer!(u128, NotInteger);
+integer!(i8, NotInteger);
+integer!(i16, NotInteger);
+integer!(i32, NotInteger);
+integer!(i64, NotInteger);
+integer!(i128, NotInteger);
+integer!(f32, NotFloat);
+integer!(f64, NotFloat);
 
 impl FromInput for char {
-    fn peek(p: &Input) -> bool {
-        p.peek().is_some()
-    }
-
+    #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
         let pos = p.pos;
 
@@ -313,10 +324,7 @@ impl FromInput for char {
 }
 
 impl FromInput for &str {
-    fn peek(p: &Input) -> bool {
-        p.peek().is_some()
-    }
-
+    #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
         let start = p.index;
 
@@ -329,5 +337,27 @@ impl FromInput for &str {
         }
 
         Ok(p.string.get(start..p.index).unwrap_or_default())
+    }
+}
+
+/// Parse until end of line.
+pub struct Eol(Input);
+
+impl FromInput for Eol {
+    #[inline]
+    fn from_input(p: &mut Input) -> Result<Self> {
+        let pos = p.pos;
+
+        let Some(string) = p.next_line() else {
+            return Err(InputError::new(p.path, p.pos, ErrorKind::NotLine));
+        };
+
+        Ok(Self(Input {
+            path: p.path,
+            string,
+            index: 0,
+            pos,
+            whitespace: p.whitespace,
+        }))
     }
 }

@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1.0.66", features = ["backtrace"] }
+memchr = "2.5.0"

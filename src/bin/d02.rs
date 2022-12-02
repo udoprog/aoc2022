@@ -1,8 +1,7 @@
-use anyhow::{bail, Result};
-use lib::Input;
+use lib::prelude::*;
 
 fn main() -> Result<()> {
-    let mut input = lib::input!("inputs/d02.txt");
+    let mut input = lib::input!("d02.txt");
 
     let mut part1 = 0;
     let mut part2 = 0;
@@ -18,12 +17,12 @@ fn main() -> Result<()> {
 }
 
 lib::from_input! {
-    |v: &str| -> Move(i32) {
+    |v: &'static str| -> Move(i32) {
         Ok(Move(match v {
             "X" | "A" => 0,
             "Y" | "B" => 1,
             "Z" | "C" => 2,
-            c => bail!("{c}"),
+            c => bail!(c),
         }))
     }
 }

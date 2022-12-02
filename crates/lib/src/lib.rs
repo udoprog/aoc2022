@@ -1,9 +1,15 @@
 mod input;
-pub use self::input::{FromInput, Input, InputError, LineCol};
+pub use self::input::{Eol, FromInput, Input, InputError, LineCol};
 
 #[doc(hidden)]
 pub mod macro_support {
     pub use anyhow::Error;
+}
+
+pub mod prelude {
+    //! Helper prelude with useful imports.
+    pub use crate::input::Eol;
+    pub use anyhow::{anyhow, bail, Result};
 }
 
 #[macro_export]
@@ -14,11 +20,6 @@ macro_rules! from_input {
         struct $out($out_ty);
 
         impl $crate::FromInput for $out {
-            #[inline]
-            fn peek(p: &$crate::Input) -> bool {
-                <$ty as $crate::FromInput>::peek(p)
-            }
-
             #[inline]
             fn from_input(p: &mut $crate::Input) -> Result<Self, $crate::InputError> {
                 let value = <$ty as $crate::FromInput>::from_input(p)?;
@@ -38,7 +39,19 @@ macro_rules! from_input {
 #[macro_export]
 macro_rules! input {
     ($path:literal) => {{
-        let string = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", $path));
-        Input::new($path, string)
+        let path = concat!("inputs/", $path);
+        let string = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/inputs/", $path));
+        $crate::Input::new(path, string)
     }};
+}
+
+#[macro_export]
+macro_rules! timeit {
+    ($($tt:tt)*) => {{
+        let start = std::time::Instant::now();
+        let out = { $($tt)* };
+        let d = std::time::Instant::now().duration_since(start);
+        println!("time: {d:?}");
+        out
+    }}
 }
