@@ -17,7 +17,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-lib::map! {
+lib::from_input! {
     |v: &str| -> Move(i32) {
         Ok(Move(match v {
             "X" | "A" => 0,

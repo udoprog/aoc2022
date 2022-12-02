@@ -7,7 +7,7 @@ pub mod macro_support {
 }
 
 #[macro_export]
-macro_rules! map {
+macro_rules! from_input {
     (
         |$value:ident: $ty:ty| -> $out:ident($out_ty:ty) $block:block
     ) => {
