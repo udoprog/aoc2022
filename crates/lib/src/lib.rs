@@ -1,5 +1,5 @@
 mod input;
-pub use self::input::{Eol, FromInput, Input, InputError, LineCol};
+pub use self::input::{FromInput, Input, InputError, LineCol, Nl, Ws};
 
 #[doc(hidden)]
 pub mod macro_support {
@@ -8,7 +8,7 @@ pub mod macro_support {
 
 pub mod prelude {
     //! Helper prelude with useful imports.
-    pub use crate::input::Eol;
+    pub use crate::input::{Nl, Ws};
     pub use anyhow::{anyhow, bail, Result};
 }
 

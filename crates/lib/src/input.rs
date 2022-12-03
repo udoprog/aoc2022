@@ -104,8 +104,6 @@ pub struct Input {
     index: usize,
     // Current reader location.
     pos: LineCol,
-    /// Check if input is whitespace sensitive or not.
-    whitespace: bool,
 }
 
 impl Input {
@@ -117,7 +115,6 @@ impl Input {
             string,
             index: 0,
             pos: LineCol::default(),
-            whitespace: false,
         }
     }
 
@@ -136,16 +133,8 @@ impl Input {
         self.pos
     }
 
-    /// Set if input is whitespace sensitive or not.
-    ///
-    /// If `false`, input parsing will automatically skip whitespace which is
-    /// the default.
-    pub fn set_whitespace(&mut self, whitespace: bool) {
-        self.whitespace = whitespace;
-    }
-
     /// Skip whitespace and return the number of lines skipped.
-    pub fn skip_whitespace(&mut self) -> Result<usize> {
+    fn skip_whitespace(&mut self) -> Result<usize> {
         let start = self.pos.line;
         self.consume_whitespace();
         Ok(self.pos.line - start)
@@ -157,11 +146,7 @@ impl Input {
     where
         T: FromInput,
     {
-        if !self.whitespace {
-            self.consume_whitespace();
-        }
-
-        T::from_input(self)
+        T::from_input_whitespace(self)
     }
 
     /// Parse the next value as T.
@@ -170,15 +155,7 @@ impl Input {
     where
         T: FromInput,
     {
-        if !self.whitespace {
-            self.consume_whitespace();
-        }
-
-        if self.peek().is_none() {
-            return Ok(None);
-        }
-
-        Ok(Some(T::from_input(self)?))
+        T::try_from_input_whitespace(self)
     }
 
     /// Get the next line of input.
@@ -203,23 +180,65 @@ impl Input {
     }
 
     /// Consume whitespace.
-    fn consume_whitespace(&mut self) {
-        while let Some(c) = self.peek() {
+    fn peek_whitespace(&mut self) -> usize {
+        let mut n = 0;
+
+        while let Some(c) = self.peek_from(n) {
             if !c.is_whitespace() {
                 break;
             }
 
-            self.step();
+            n = n.checked_add(c.len_utf8()).expect("cursor overflow");
         }
+
+        n
+    }
+
+    /// Consume whitespace.
+    fn consume_whitespace(&mut self) {
+        let n = self.peek_whitespace();
+        self.advance(n);
     }
 
     /// Get the byte at the given reader offset.
-    fn peek(&self) -> Option<char> {
+    fn peek_from(&self, n: usize) -> Option<char> {
         self.string
             .get(self.index..)
+            .and_then(|s| s.get(n..))
             .unwrap_or_default()
             .chars()
             .next()
+    }
+
+    /// Get the byte at the given reader offset.
+    #[inline]
+    fn peek(&self) -> Option<char> {
+        self.peek_from(0)
+    }
+
+    #[inline]
+    fn advance(&mut self, n: usize) {
+        if n == 0 {
+            return;
+        }
+
+        let Some(string) = self.string.get(self.index..).and_then(|s| s.get(..n)) else {
+            return;
+        };
+
+        for c in string.chars() {
+            match c {
+                '\n' => {
+                    self.pos.new_line();
+                }
+                c if !c.is_control() => {
+                    self.pos.new_column();
+                }
+                _ => {}
+            }
+        }
+
+        self.index = self.index.checked_add(n).expect("cursor overflow");
     }
 
     /// Step the buffer.
@@ -238,12 +257,35 @@ impl Input {
             _ => {}
         }
 
-        self.index += c.len_utf8();
+        self.index = self
+            .index
+            .checked_add(c.len_utf8())
+            .expect("cursor overflow");
     }
 }
 
 /// A value that can be parsed from input.
 pub trait FromInput: Sized {
+    /// Optionally try to confuse input ignoring leading whitespace by default.
+    #[inline]
+    fn try_from_input_whitespace(p: &mut Input) -> Result<Option<Self>> {
+        let n = p.peek_whitespace();
+
+        if p.peek_from(n).is_none() {
+            return Ok(None);
+        }
+
+        p.advance(n);
+        Ok(Some(Self::from_input(p)?))
+    }
+
+    /// From input before whitespace stripping.
+    #[inline]
+    fn from_input_whitespace(p: &mut Input) -> Result<Self> {
+        p.consume_whitespace();
+        Self::from_input(p)
+    }
+
     /// Parse a value from a given input.
     fn from_input(p: &mut Input) -> Result<Self>;
 }
@@ -341,9 +383,23 @@ impl FromInput for &str {
 }
 
 /// Parse until end of line.
-pub struct Eol(Input);
+pub struct Nl(Input);
 
-impl FromInput for Eol {
+impl FromInput for Nl {
+    #[inline]
+    fn try_from_input_whitespace(p: &mut Input) -> Result<Option<Self>> {
+        if p.peek().is_none() {
+            return Ok(None);
+        }
+
+        Ok(Some(Self::from_input(p)?))
+    }
+
+    #[inline]
+    fn from_input_whitespace(p: &mut Input) -> Result<Self> {
+        Self::from_input(p)
+    }
+
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
         let pos = p.pos;
@@ -357,7 +413,26 @@ impl FromInput for Eol {
             string,
             index: 0,
             pos,
-            whitespace: p.whitespace,
         }))
+    }
+}
+
+/// Consume whitespace and return the number of lines consumed.
+pub struct Ws(pub usize);
+
+impl FromInput for Ws {
+    #[inline]
+    fn try_from_input_whitespace(p: &mut Input) -> Result<Option<Self>> {
+        Ok(Some(Self::from_input(p)?))
+    }
+
+    #[inline]
+    fn from_input_whitespace(p: &mut Input) -> Result<Self> {
+        Self::from_input(p)
+    }
+
+    #[inline]
+    fn from_input(p: &mut Input) -> Result<Self> {
+        Ok(Self(p.skip_whitespace()?))
     }
 }

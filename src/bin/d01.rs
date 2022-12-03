@@ -15,15 +15,14 @@ fn main() -> Result<()> {
 /// Parse input lines.
 fn parse() -> Result<[u32; 4]> {
     let mut input = lib::input!("d01.txt");
-    input.set_whitespace(true);
 
     let mut output = [0; 4];
     let mut calories = 0u32;
 
-    while let Some(n) = input.try_next::<u32>()? {
+    while let Some((n, Ws(lines))) = input.try_next::<(u32, Ws)>()? {
         calories += n;
 
-        if input.skip_whitespace()? == 2 {
+        if lines == 2 {
             output[0] = std::mem::take(&mut calories);
             output.sort();
         }
