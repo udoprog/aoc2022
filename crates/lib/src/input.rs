@@ -101,7 +101,7 @@ impl fmt::Display for LineCol {
 }
 
 /// Helper to parse input from a file.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Input {
     /// Path being parsed.
     path: &'static str,
@@ -131,7 +131,7 @@ impl Input {
         self.pos = LineCol::default();
     }
 
-    /// Remaining string of the current input.
+    /// Get remaining binary string of the input.
     pub fn as_bstr(&self) -> &'static BStr {
         BStr::new(self.data.get(self.index..).unwrap_or_default())
     }
@@ -146,13 +146,6 @@ impl Input {
         self.pos
     }
 
-    /// Skip whitespace and return the number of lines skipped.
-    fn skip_whitespace(&mut self) -> Result<usize> {
-        let start = self.pos.line;
-        self.consume_whitespace();
-        Ok(self.pos.line - start)
-    }
-
     /// Parse the next value as T.
     #[inline]
     #[allow(clippy::should_implement_trait)]
@@ -163,7 +156,18 @@ impl Input {
         T::from_input_whitespace(self)
     }
 
-    /// Parse a line according to the given specification.
+    /// Try parse the next value as `T`, returns `None` if there is no more
+    /// non-whitespace data to process.
+    #[inline]
+    pub fn try_next<T>(&mut self) -> Result<Option<T>>
+    where
+        T: FromInput,
+    {
+        T::try_from_input(self)
+    }
+
+    /// Parse the next value as `T`, errors with `Err(InputError)` if the next
+    /// element is not a valid value of type `T`.
     #[inline]
     pub fn line<T>(&mut self) -> Result<T>
     where
@@ -173,16 +177,9 @@ impl Input {
         line.next()
     }
 
-    /// Parse the next value as T.
-    #[inline]
-    pub fn try_next<T>(&mut self) -> Result<Option<T>>
-    where
-        T: FromInput,
-    {
-        T::try_from_input_whitespace(self)
-    }
-
-    /// Parse a line according to the given specification.
+    /// Parse the next value as `T`, errors with `Err(InputError)` if the next
+    /// element is not a valid value of type `T`, returns `Ok(None)` if there is
+    /// no more non-whitespace data to process.
     #[inline]
     pub fn try_line<T>(&mut self) -> Result<Option<T>>
     where
@@ -195,9 +192,16 @@ impl Input {
         Ok(Some(line.next()?))
     }
 
+    /// Skip whitespace and return the number of lines skipped.
+    fn skip_whitespace(&mut self) -> Result<usize> {
+        let start = self.pos.line;
+        self.consume_whitespace();
+        Ok(self.pos.line - start)
+    }
+
     /// Get the next line of input.
     #[inline]
-    pub fn next_line(&mut self) -> Option<&'static BStr> {
+    fn next_line(&mut self) -> Option<&'static BStr> {
         let string = self.data.get(self.index..)?;
 
         let Some(end) = memchr::memchr(b'\n', string.as_ref()) else {
@@ -234,13 +238,7 @@ impl Input {
 
     /// Get the byte at the given reader offset.
     fn peek_from(&self, n: usize) -> Option<u8> {
-        self.data
-            .get(self.index..)
-            .and_then(|s| s.get(n..))
-            .unwrap_or_default()
-            .iter()
-            .next()
-            .copied()
+        self.data.get(self.index.checked_add(n)?).copied()
     }
 
     /// Get the byte at the given reader offset.
@@ -290,10 +288,7 @@ impl Input {
             _ => {}
         }
 
-        self.index = self
-            .index
-            .checked_add(1)
-            .expect("cursor overflow");
+        self.index = self.index.checked_add(1).expect("cursor overflow");
     }
 }
 
@@ -301,7 +296,7 @@ impl Input {
 pub trait FromInput: Sized {
     /// Optionally try to confuse input ignoring leading whitespace by default.
     #[inline]
-    fn try_from_input_whitespace(p: &mut Input) -> Result<Option<Self>> {
+    fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
         let n = p.peek_whitespace();
 
         if p.peek_from(n).is_none() {
@@ -436,7 +431,7 @@ pub struct Nl(Input);
 
 impl FromInput for Nl {
     #[inline]
-    fn try_from_input_whitespace(p: &mut Input) -> Result<Option<Self>> {
+    fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
         if p.peek().is_none() {
             return Ok(None);
         }
@@ -453,13 +448,13 @@ impl FromInput for Nl {
     fn from_input(p: &mut Input) -> Result<Self> {
         let pos = p.pos;
 
-        let Some(string) = p.next_line() else {
+        let Some(data) = p.next_line() else {
             return Err(InputError::new(p.path, p.pos, ErrorKind::NotLine));
         };
 
         Ok(Self(Input {
             path: p.path,
-            data: string,
+            data,
             index: 0,
             pos,
         }))
@@ -471,7 +466,7 @@ pub struct Ws(pub usize);
 
 impl FromInput for Ws {
     #[inline]
-    fn try_from_input_whitespace(p: &mut Input) -> Result<Option<Self>> {
+    fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
         Ok(Some(Self::from_input(p)?))
     }
 
@@ -495,7 +490,7 @@ where
         let mut output = arrayvec::ArrayVec::new();
         let mut pos = p.pos;
 
-        while let Some(element) = T::try_from_input_whitespace(p)? {
+        while let Some(element) = T::try_from_input(p)? {
             if output.remaining_capacity() == 0 {
                 return Err(InputError::new(p.path, pos, ErrorKind::ArrayCapacity(N)));
             }
@@ -516,7 +511,7 @@ where
     fn from_input(p: &mut Input) -> Result<Self> {
         let mut output = Vec::new();
 
-        while let Some(element) = T::try_from_input_whitespace(p)? {
+        while let Some(element) = T::try_from_input(p)? {
             output.push(element);
         }
 

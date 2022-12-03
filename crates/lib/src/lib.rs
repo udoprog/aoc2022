@@ -10,7 +10,7 @@ pub mod macro_support {
 pub mod prelude {
     //! Helper prelude with useful imports.
     pub use crate::input::{Nl, Ws};
-    pub use anyhow::{anyhow, bail, Result, Context};
+    pub use anyhow::{anyhow, bail, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub use bstr::{BStr, ByteSlice};
 }
@@ -26,9 +26,10 @@ macro_rules! from_input {
             fn from_input(p: &mut $crate::Input) -> core::result::Result<Self, $crate::InputError> {
                 let value = <$ty as $crate::FromInput>::from_input(p)?;
 
-                match (|$value: $ty| -> core::result::Result<$out, $crate::macro_support::Error> { $block })(
-                    value,
-                ) {
+                match (|$value: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
+                    $block
+                })(value)
+                {
                     Ok(value) => Ok(value),
                     Err(e) => Err($crate::InputError::any(p.path(), p.pos(), e)),
                 }
@@ -44,9 +45,9 @@ pub fn input(
     storage: &'static mut String,
 ) -> anyhow::Result<Input> {
     use anyhow::{anyhow, Context};
-    use std::fs::File;
-    use std::io::{Read};
     use bstr::BStr;
+    use std::fs::File;
+    use std::io::Read;
 
     return inner(path, read_path, storage).with_context(|| anyhow!("{path}"));
 
