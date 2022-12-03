@@ -1,7 +1,7 @@
 use lib::prelude::*;
 
-#[entry(input = "d01.txt")]
-fn main(mut input: Input) -> Result<()> {
+#[entry(input = "d01.txt", expect = (70764, 203905))]
+fn main(mut input: Input) -> Result<(u32, u32)> {
     let mut output = [0; 4];
     let mut calories = 0u32;
 
@@ -22,8 +22,5 @@ fn main(mut input: Input) -> Result<()> {
     let [_, a, b, c] = output;
     let part1 = c;
     let part2 = a + b + c;
-
-    assert_eq!(part1, 70764);
-    assert_eq!(part2, 203905);
-    Ok(())
+    Ok((part1, part2))
 }

@@ -1,5 +1,3 @@
-use std::ops;
-
 use proc_macro::{Literal, Span, TokenTree};
 
 use crate::error::Error;
@@ -12,6 +10,7 @@ const T: [char; 2] = ['=', '>'];
 #[derive(Default)]
 pub(crate) struct Config {
     pub(crate) input_file: Option<Literal>,
+    pub(crate) expect: Option<TokenTree>,
 }
 
 impl Config {
@@ -27,25 +26,19 @@ impl Config {
 pub(crate) struct ItemOutput {
     tokens: Vec<TokenTree>,
     fn_name: Option<usize>,
-    signature: Option<ops::Range<usize>>,
     block: Option<usize>,
-    args: Option<usize>,
 }
 
 impl ItemOutput {
     pub(crate) fn new(
         tokens: Vec<TokenTree>,
         fn_name: Option<usize>,
-        signature: Option<ops::Range<usize>>,
         block: Option<usize>,
-        args: Option<usize>,
     ) -> Self {
         Self {
             tokens,
             fn_name,
-            signature,
             block,
-            args,
         }
     }
 
@@ -58,7 +51,7 @@ impl ItemOutput {
     }
 
     /// Expand into a function item.
-    pub(crate) fn expand_item(self, config: Config) -> impl IntoTokens {
+    pub(crate) fn expand_item(self, config: &Config) -> impl IntoTokens + '_ {
         from_fn(move |s| {
             if let Some(item) = self.expand_if_present(config) {
                 s.write(item);
@@ -69,18 +62,19 @@ impl ItemOutput {
     }
 
     /// Expands the function item if all prerequisites are present.
-    fn expand_if_present(&self, config: Config) -> Option<impl IntoTokens + '_> {
+    fn expand_if_present<'a>(&'a self, config: &'a Config) -> Option<impl IntoTokens + 'a> {
         let m = Mod;
 
-        let signature = self.signature.as_ref()?.clone();
-        let signature = self.tokens.get(signature)?;
         let fn_name = self.tokens.get(self.fn_name?)?;
-        let args = self.args?;
 
-        let (input_decl, input_arg) = match config.input_file {
+        let (input_decl, input_arg) = match &config.input_file {
             Some(input) => {
-                let decl = (("let", "input"), '=', (m, "input", '!', parens(input)), ';');
-
+                let decl = (
+                    ("let", "input"),
+                    '=',
+                    (m, "input", '!', parens(input.clone())),
+                    ';',
+                );
                 (Some(decl), Input::Input)
             }
             None => (None, Input::Todo),
@@ -95,15 +89,19 @@ impl ItemOutput {
 
         let block = (parse_opts, input_decl);
 
-        let signature = expand_without_index(signature, args, || parens(()));
-
         let mode = (m, "cli", S, "Mode");
+
+        let compare = match &config.expect {
+            Some(expect) => Compare::Expected(expect),
+            _ => Compare::Ignore,
+        };
 
         let call_mode = (
             (mode, S, "Default"),
             T,
-            braced(ReturnCall(fn_name.clone(), input_arg)),
+            braced(CollectCall(fn_name.clone(), input_arg, compare)),
         );
+
         let bench_mode = (
             (mode, S, "Bench"),
             T,
@@ -114,13 +112,24 @@ impl ItemOutput {
             "match",
             ("opts", '.', "mode"),
             braced((call_mode, bench_mode)),
+            ';',
         );
 
-        Some((signature, braced((&self.tokens[..], block, match_mode))))
+        let ok_return = ("Ok", parens(parens(())));
+
+        let anyhow_result = ("lib", S, "prelude", S, "Result", '<', parens(()), '>');
+        let signature = ("fn", "main", parens(()), ['-', '>'], anyhow_result);
+        Some((
+            signature,
+            braced((&self.tokens[..], block, match_mode, ok_return)),
+        ))
     }
 }
 
-fn bencher(m: Mod, call: impl IntoTokens) -> impl IntoTokens {
+fn bencher<'a, C: 'a>(m: Mod, call: C) -> impl IntoTokens + 'a
+where
+    C: IntoTokens + 'a,
+{
     from_fn(move |s| {
         s.write((
             ("let", "mut", "b"),
@@ -129,31 +138,10 @@ fn bencher(m: Mod, call: impl IntoTokens) -> impl IntoTokens {
         ));
 
         s.write((
-            "b",
-            '.',
-            "iter",
-            parens(('&', "opts", ',', ['|', '|'], call)),
+            ("b", '.', "iter"),
+            parens(('&', "opts", ',', ['|', '|'], braced(call))),
+            ('?', ';'),
         ));
-    })
-}
-
-fn expand_without_index<'a, R: 'a, T>(
-    tokens: &'a [TokenTree],
-    index: usize,
-    replace: R,
-) -> impl IntoTokens + 'a
-where
-    R: Fn() -> T,
-    T: IntoTokens + 'a,
-{
-    from_fn(move |s| {
-        for (n, tt) in tokens.iter().enumerate() {
-            if n == index {
-                s.write(replace());
-            } else {
-                s.write(tt.clone());
-            }
-        }
     })
 }
 
@@ -187,12 +175,16 @@ impl IntoTokens for Input {
     }
 }
 
-struct ReturnCall(TokenTree, Input);
+struct CollectCall<'a>(TokenTree, Input, Compare<'a>);
 
-impl IntoTokens for ReturnCall {
+impl IntoTokens for CollectCall<'_> {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {
-        let ReturnCall(name, input) = self;
-        stream.write(span, ("return", name, parens(input), ';'));
+        let CollectCall(name, input, compare) = self;
+        stream.write(
+            span,
+            ("let", compare.binding(), '=', name, parens(input), '?', ';'),
+        );
+        stream.write(span, compare);
     }
 }
 
@@ -202,5 +194,31 @@ impl IntoTokens for BenchCall {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {
         let BenchCall(name, input) = self;
         stream.write(span, (name, parens((input, '.', "clone", parens(())))));
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Compare<'a> {
+    Ignore,
+    Expected(&'a TokenTree),
+}
+
+impl Compare<'_> {
+    fn binding(&self) -> &'static str {
+        match self {
+            Compare::Ignore => "_",
+            Compare::Expected(..) => "value",
+        }
+    }
+}
+
+impl IntoTokens for Compare<'_> {
+    fn into_tokens(self, stream: &mut TokenStream, span: Span) {
+        if let Compare::Expected(tt) = self {
+            stream.write(
+                span,
+                ("assert_eq", '!', parens(("value", ',', tt.clone())), ';'),
+            );
+        }
     }
 }

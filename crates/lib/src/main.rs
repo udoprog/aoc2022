@@ -25,6 +25,7 @@ fn main() -> Result<()> {
     let mut cmd = Command::new("cargo");
     cmd.stdout(Stdio::piped());
     cmd.arg("build");
+    cmd.arg("--release");
     cmd.args(&["-p", "y2022"]);
     cmd.args(&["--message-format", "json"]);
 
