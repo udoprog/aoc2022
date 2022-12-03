@@ -3,6 +3,9 @@
 use std::convert::Infallible;
 use std::error;
 use std::fmt;
+use std::str::from_utf8;
+
+use bstr::BStr;
 
 type Result<T> = std::result::Result<T, InputError>;
 
@@ -54,6 +57,7 @@ enum ErrorKind {
     NotFloat,
     NotChar,
     NotLine,
+    NotUtf8,
     ArrayCapacity(usize),
     Boxed(anyhow::Error),
 }
@@ -65,6 +69,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::NotFloat => write!(f, "not a float"),
             ErrorKind::NotChar => write!(f, "not a character"),
             ErrorKind::NotLine => write!(f, "not a line"),
+            ErrorKind::NotUtf8 => write!(f, "not utf-8"),
             ErrorKind::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
             ErrorKind::Boxed(error) => error.fmt(f),
         }
@@ -101,7 +106,7 @@ pub struct Input {
     /// Path being parsed.
     path: &'static str,
     /// The path being parsed.
-    string: &'static str,
+    data: &'static BStr,
     /// Index being read.
     index: usize,
     // Current reader location.
@@ -111,10 +116,10 @@ pub struct Input {
 impl Input {
     /// Construct a new input processor.
     #[doc(hidden)]
-    pub fn new(path: &'static str, string: &'static str) -> Self {
+    pub fn new(path: &'static str, string: &'static BStr) -> Self {
         Self {
             path,
-            string,
+            data: string,
             index: 0,
             pos: LineCol::default(),
         }
@@ -127,8 +132,8 @@ impl Input {
     }
 
     /// Remaining string of the current input.
-    pub fn as_str(&self) -> &'static str {
-        self.string.get(self.index..).unwrap_or_default()
+    pub fn as_bstr(&self) -> &'static BStr {
+        BStr::new(self.data.get(self.index..).unwrap_or_default())
     }
 
     /// Get the current input path.
@@ -192,23 +197,18 @@ impl Input {
 
     /// Get the next line of input.
     #[inline]
-    pub fn next_line(&mut self) -> Option<&'static str> {
-        let string = self.string.get(self.index..)?;
+    pub fn next_line(&mut self) -> Option<&'static BStr> {
+        let string = self.data.get(self.index..)?;
 
-        let Some(end) = memchr::memchr(b'\n', string.as_bytes()) else {
-            self.index = self.string.len();
-            self.pos.column += string.chars().count();
-            return Some(string);
+        let Some(end) = memchr::memchr(b'\n', string.as_ref()) else {
+            self.index = self.data.len();
+            self.pos.column += string.len();
+            return Some(BStr::new(string));
         };
 
         self.pos.new_line();
         self.index = self.index.saturating_add(end.saturating_add(1));
-        string.get(..end)
-    }
-
-    /// Test if we're at eof.
-    pub fn is_eof(&mut self) -> bool {
-        self.peek().is_none()
+        Some(BStr::new(string.get(..end)?))
     }
 
     /// Consume whitespace.
@@ -216,11 +216,11 @@ impl Input {
         let mut n = 0;
 
         while let Some(c) = self.peek_from(n) {
-            if !c.is_whitespace() {
+            if !c.is_ascii_whitespace() {
                 break;
             }
 
-            n = n.checked_add(c.len_utf8()).expect("cursor overflow");
+            n = n.checked_add(1).expect("cursor overflow");
         }
 
         n
@@ -233,18 +233,19 @@ impl Input {
     }
 
     /// Get the byte at the given reader offset.
-    fn peek_from(&self, n: usize) -> Option<char> {
-        self.string
+    fn peek_from(&self, n: usize) -> Option<u8> {
+        self.data
             .get(self.index..)
             .and_then(|s| s.get(n..))
             .unwrap_or_default()
-            .chars()
+            .iter()
             .next()
+            .copied()
     }
 
     /// Get the byte at the given reader offset.
     #[inline]
-    fn peek(&self) -> Option<char> {
+    fn peek(&self) -> Option<u8> {
         self.peek_from(0)
     }
 
@@ -254,16 +255,16 @@ impl Input {
             return;
         }
 
-        let Some(string) = self.string.get(self.index..).and_then(|s| s.get(..n)) else {
+        let Some(string) = self.data.get(self.index..).and_then(|s| s.get(..n)) else {
             return;
         };
 
-        for c in string.chars() {
+        for &c in string.iter() {
             match c {
-                '\n' => {
+                b'\n' => {
                     self.pos.new_line();
                 }
-                c if !c.is_control() => {
+                c if !c.is_ascii_control() => {
                     self.pos.new_column();
                 }
                 _ => {}
@@ -275,15 +276,15 @@ impl Input {
 
     /// Step the buffer.
     fn step(&mut self) {
-        let Some(c) = self.string.get(self.index..).unwrap_or_default().chars().next() else {
+        let Some(&c) = self.data.get(self.index..).unwrap_or_default().iter().next() else {
             return;
         };
 
         match c {
-            '\n' => {
+            b'\n' => {
                 self.pos.new_line();
             }
-            c if !c.is_control() => {
+            c if !c.is_ascii_control() => {
                 self.pos.new_column();
             }
             _ => {}
@@ -291,7 +292,7 @@ impl Input {
 
         self.index = self
             .index
-            .checked_add(c.len_utf8())
+            .checked_add(1)
             .expect("cursor overflow");
     }
 }
@@ -344,18 +345,10 @@ macro_rules! integer {
     ($ty:ty, $error:ident) => {
         impl FromInput for $ty {
             fn from_input(p: &mut Input) -> Result<Self> {
-                let start = p.index;
                 let pos = p.pos;
+                let string: &str = FromInput::from_input(p)?;
 
-                while let Some(c) = p.peek() {
-                    if !matches!(c, '-' | '.' | '0'..='9') {
-                        break;
-                    }
-
-                    p.step();
-                }
-
-                let Some(n) = p.string.get(start..p.index).and_then(|s| str::parse(s).ok()) else {
+                let Ok(n) = str::parse(string) else {
                     return Err(InputError::new(p.path, pos, ErrorKind::$error));
                 };
 
@@ -386,31 +379,55 @@ integer!(f64, NotFloat);
 impl FromInput for char {
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
+        use bstr::ByteSlice;
+
         let pos = p.pos;
 
-        let Some(c) = p.peek() else {
+        let Some(c) = p.data.get(p.index..).and_then(|b| b.chars().next()) else {
             return Err(InputError::new(p.path, pos, ErrorKind::NotChar));
         };
 
-        p.step();
+        p.advance(c.len_utf8());
         Ok(c)
     }
 }
 
-impl FromInput for &str {
+impl FromInput for &[u8] {
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
         let start = p.index;
 
         while let Some(c) = p.peek() {
-            if c.is_whitespace() {
+            if c.is_ascii_whitespace() {
                 break;
             }
 
             p.step();
         }
 
-        Ok(p.string.get(start..p.index).unwrap_or_default())
+        let data = p.data.get(start..p.index).unwrap_or_default();
+        Ok(data)
+    }
+}
+
+impl FromInput for &str {
+    #[inline]
+    fn from_input(p: &mut Input) -> Result<Self> {
+        let data = <&[u8]>::from_input(p)?;
+
+        let Ok(data) = from_utf8(data) else {
+            return Err(InputError::new(p.path, p.pos, ErrorKind::NotUtf8));
+        };
+
+        Ok(data)
+    }
+}
+
+impl FromInput for &BStr {
+    #[inline]
+    fn from_input(p: &mut Input) -> Result<Self> {
+        let data = <&[u8]>::from_input(p)?;
+        Ok(BStr::new(data))
     }
 }
 
@@ -442,7 +459,7 @@ impl FromInput for Nl {
 
         Ok(Self(Input {
             path: p.path,
-            string,
+            data: string,
             index: 0,
             pos,
         }))

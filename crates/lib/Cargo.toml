@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0.66", features = ["backtrace"] }
 arrayvec = { version = "0.7.2", default-features = false }
+bstr = "1.0.1"
 memchr = "2.5.0"
