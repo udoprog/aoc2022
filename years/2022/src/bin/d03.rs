@@ -8,14 +8,12 @@ fn main() -> Result<()> {
 
     while let Some(data) = input.try_line::<&[u8]>()? {
         let (first, second) = data.split_at(data.len() / 2);
-        let first = set(first);
-        let second = set(second);
-        part1 += (first & second).trailing_zeros();
+        part1 += (set(first) & set(second)).trailing_zeros();
     }
 
     input.reset();
 
-    while let Some((Set(a), Set(b), Set(c))) = input.try_next::<(Set, Set, Set)>()? {
+    while let Some((S(a), S(b), S(c))) = input.try_next::<(S, S, S)>()? {
         part2 += (a & b & c).trailing_zeros();
     }
 
@@ -32,10 +30,10 @@ fn score(c: u8) -> u64 {
     }
 }
 
-struct Set(u64);
+struct S(u64);
 
 lib::from_input! {
-    |v: &BStr| -> Set { Ok(Set(set(v))) }
+    |v: &BStr| -> S { Ok(S(set(v))) }
 }
 
 fn set(string: &[u8]) -> u64 {
