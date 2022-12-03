@@ -120,6 +120,12 @@ impl Input {
         }
     }
 
+    /// Reset input.
+    pub fn reset(&mut self) {
+        self.index = 0;
+        self.pos = LineCol::default();
+    }
+
     /// Remaining string of the current input.
     pub fn as_str(&self) -> &'static str {
         self.string.get(self.index..).unwrap_or_default()
