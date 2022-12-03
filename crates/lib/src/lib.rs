@@ -1,6 +1,4 @@
-mod input;
-
-pub use self::input::{FromInput, Input, InputError, LineCol, Nl, Ws};
+pub mod input;
 
 #[doc(hidden)]
 pub mod macro_support {
@@ -9,7 +7,7 @@ pub mod macro_support {
 
 pub mod prelude {
     //! Helper prelude with useful imports.
-    pub use crate::input::{Nl, Ws};
+    pub use crate::input::{Nl, Ws, Input};
     pub use anyhow::{anyhow, bail, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub use bstr::{BStr, ByteSlice};
@@ -21,18 +19,18 @@ macro_rules! from_input {
     (
         |$value:ident: $ty:ty| -> $out:ident $block:block
     ) => {
-        impl $crate::FromInput for $out {
+        impl $crate::input::FromInput for $out {
             #[inline]
-            fn from_input(p: &mut $crate::Input) -> core::result::Result<Self, $crate::InputError> {
+            fn from_input(p: &mut $crate::input::Input) -> core::result::Result<Self, $crate::input::InputError> {
                 let pos = p.index();
-                let value = <$ty as $crate::FromInput>::from_input(p)?;
+                let value = <$ty as $crate::input::FromInput>::from_input(p)?;
 
                 match (|$value: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
                     $block
                 })(value)
                 {
                     Ok(value) => Ok(value),
-                    Err(e) => Err($crate::InputError::any(p.path(), p.pos_of(pos), e)),
+                    Err(e) => Err($crate::input::InputError::any(p.path(), p.pos_of(pos), e)),
                 }
             }
         }
@@ -43,10 +41,9 @@ macro_rules! from_input {
 pub fn input(
     path: &'static str,
     read_path: &str,
-    storage: &'static mut String,
-) -> anyhow::Result<Input> {
+    storage: &'static mut Vec<u8>,
+) -> anyhow::Result<self::input::Input> {
     use anyhow::{anyhow, Context};
-    use bstr::BStr;
     use std::fs::File;
     use std::io::Read;
 
@@ -55,13 +52,13 @@ pub fn input(
     fn inner(
         path: &'static str,
         read_path: &str,
-        storage: &'static mut String,
-    ) -> anyhow::Result<Input> {
+        storage: &'static mut Vec<u8>,
+    ) -> anyhow::Result<self::input::Input> {
         let mut file = File::open(read_path)?;
-        let mut buf = String::with_capacity(4096);
-        file.read_to_string(&mut buf)?;
+        let mut buf = Vec::with_capacity(4096);
+        file.read_to_end(&mut buf)?;
         *storage = buf;
-        Ok(Input::new(path, BStr::new(storage)))
+        Ok(self::input::Input::new(path, storage))
     }
 }
 
@@ -73,7 +70,7 @@ macro_rules! input {
     };
 
     ($path:literal, $buf:literal) => {{
-        static mut STORAGE: String = String::new();
+        static mut STORAGE: Vec<u8> = Vec::new();
         let path = concat!("inputs/", $path);
         let read_path = concat!(env!("CARGO_MANIFEST_DIR"), "/inputs/", $path);
         $crate::input(path, read_path, unsafe { &mut STORAGE })?

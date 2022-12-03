@@ -4,6 +4,7 @@ use std::convert::Infallible;
 use std::error;
 use std::fmt;
 use std::str::from_utf8;
+use std::ops::Range;
 
 use bstr::BStr;
 
@@ -93,8 +94,8 @@ impl fmt::Display for LineCol {
     }
 }
 
-/// Helper to parse input from a file.
-#[derive(Debug, Clone, Copy)]
+/// Helper to parse input.
+#[derive(Debug, Clone)]
 pub struct Input {
     /// Path being parsed.
     path: &'static str,
@@ -103,20 +104,18 @@ pub struct Input {
     /// Index into the current slice.
     index: usize,
     /// Index being read.
-    start: usize,
-    end: usize,
+    range: Range<usize>,
 }
 
 impl Input {
     /// Construct a new input processor.
     #[doc(hidden)]
-    pub fn new(path: &'static str, string: &'static [u8]) -> Self {
+    pub fn new(path: &'static str, data: &'static [u8]) -> Self {
         Self {
             path,
-            data: string,
+            data,
             index: 0,
-            start: 0,
-            end: string.len(),
+            range: 0..data.len(),
         }
     }
 
@@ -127,12 +126,12 @@ impl Input {
 
     /// Reset input.
     pub fn reset(&mut self) {
-        self.index = self.start;
+        self.index = self.range.start;
     }
 
     /// Get remaining binary string of the input.
     pub fn as_bytes(&self) -> &'static [u8] {
-        self.data.get(self.index..self.end).unwrap_or_default()
+        self.data.get(self.index..self.range.end).unwrap_or_default()
     }
 
     /// Get the current input path.
@@ -152,20 +151,12 @@ impl Input {
             return LineCol::EMPTY;
         };
 
-        let mut line = 0;
-        let mut last = 0;
-        let mut it = memchr::memchr_iter(b'\n', data);
-
-        while let Some(n) = it.next() {
-            line += 1;
-            last = n;
-        }
-
-        let column = data.get(last.saturating_add(1)..).unwrap_or_default().len();
+        let it = memchr::memchr_iter(b'\n', data);
+        let (line, last) = it.enumerate().last().map(|(line, n)| (line + 1, n)).unwrap_or_default();
 
         LineCol {
-            line,
-            column
+            line: line,
+            column: data.get(last.saturating_add(1)..).unwrap_or_default().len()
         }
     }
 
@@ -225,17 +216,17 @@ impl Input {
 
     /// Get the next line of input.
     #[inline]
-    fn next_line(&mut self) -> Option<(usize, usize)> {
-        let string = self.data.get(self.index..self.end)?;
+    fn next_line(&mut self) -> Option<Range<usize>> {
+        let data = self.data.get(self.index..self.range.end)?;
 
-        let Some(at) = memchr::memchr(b'\n', string.as_ref()) else {
-            self.index = self.end;
-            return Some((self.index, self.end));
+        let Some(at) = memchr::memchr(b'\n', data.as_ref()) else {
+            self.index = self.range.end;
+            return Some(self.index..self.index);
         };
 
         let end = self.index.saturating_add(at);
         let start = std::mem::replace(&mut self.index, end.saturating_add(1));
-        Some((start, end))
+        Some(start..end)
     }
 
     /// Consume whitespace.
@@ -261,9 +252,9 @@ impl Input {
 
     /// Get the byte at the given reader offset.
     fn peek_from(&self, n: usize) -> Option<u8> {
-        let n = self.index.checked_add(n)?.min(self.end);
+        let n = self.index.checked_add(n)?.min(self.range.end);
 
-        if n >= self.end {
+        if n >= self.range.end {
             return None;
         }
 
@@ -282,12 +273,12 @@ impl Input {
             return;
         }
 
-        self.index = self.index.saturating_add(n).min(self.end);
+        self.index = self.index.saturating_add(n).min(self.range.end);
     }
 
     /// Step the buffer.
     fn step(&mut self) {
-        self.index = self.index.saturating_add(1).min(self.end);
+        self.index = self.index.saturating_add(1).min(self.range.end);
     }
 }
 
@@ -388,6 +379,27 @@ impl FromInput for char {
     }
 }
 
+impl FromInput for Input {
+    #[inline]
+    fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
+        if p.peek().is_none() {
+            return Ok(None);
+        }
+
+        Ok(Some(Self::from_input(p)?))
+    }
+
+    #[inline]
+    fn from_input_whitespace(p: &mut Input) -> Result<Self> {
+        Self::from_input(p)
+    }
+
+    #[inline]
+    fn from_input(p: &mut Input) -> Result<Self> {
+        Ok(p.clone())
+    }
+}
+
 impl FromInput for &[u8] {
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
@@ -449,7 +461,7 @@ impl FromInput for Nl {
     fn from_input(p: &mut Input) -> Result<Self> {
         let pos = p.index;
 
-        let Some((start, end)) = p.next_line() else {
+        let Some(range) = p.next_line() else {
             let pos = p.pos_of(pos);
             return Err(InputError::new(p.path, pos, ErrorKind::NotLine));
         };
@@ -457,9 +469,8 @@ impl FromInput for Nl {
         Ok(Self(Input {
             path: p.path,
             data: p.data,
-            index: start,
-            start,
-            end,
+            index: range.start,
+            range
         }))
     }
 }
