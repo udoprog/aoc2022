@@ -1,8 +1,7 @@
 use lib::prelude::*;
 
-fn main() -> Result<()> {
-    let mut input = lib::input!("d03.txt");
-
+#[entry(input = "d03.txt")]
+fn main(mut input: Input) -> Result<()> {
     let mut part1 = 0;
     let mut part2 = 0;
 

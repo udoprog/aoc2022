@@ -3,8 +3,8 @@
 use std::convert::Infallible;
 use std::error;
 use std::fmt;
-use std::str::from_utf8;
 use std::ops::Range;
+use std::str::from_utf8;
 
 use bstr::BStr;
 
@@ -131,7 +131,9 @@ impl Input {
 
     /// Get remaining binary string of the input.
     pub fn as_bytes(&self) -> &'static [u8] {
-        self.data.get(self.index..self.range.end).unwrap_or_default()
+        self.data
+            .get(self.index..self.range.end)
+            .unwrap_or_default()
     }
 
     /// Get the current input path.
@@ -152,11 +154,15 @@ impl Input {
         };
 
         let it = memchr::memchr_iter(b'\n', data);
-        let (line, last) = it.enumerate().last().map(|(line, n)| (line + 1, n)).unwrap_or_default();
+        let (line, last) = it
+            .enumerate()
+            .last()
+            .map(|(line, n)| (line + 1, n))
+            .unwrap_or_default();
 
         LineCol {
             line: line,
-            column: data.get(last.saturating_add(1)..).unwrap_or_default().len()
+            column: data.get(last.saturating_add(1)..).unwrap_or_default().len(),
         }
     }
 
@@ -470,7 +476,7 @@ impl FromInput for Nl {
             path: p.path,
             data: p.data,
             index: range.start,
-            range
+            range,
         }))
     }
 }

@@ -1,3 +1,4 @@
+pub mod cli;
 pub mod input;
 
 #[doc(hidden)]
@@ -7,10 +8,11 @@ pub mod macro_support {
 
 pub mod prelude {
     //! Helper prelude with useful imports.
-    pub use crate::input::{Nl, Ws, Input};
+    pub use crate::input::{Input, Nl, Ws};
     pub use anyhow::{anyhow, bail, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub use bstr::{BStr, ByteSlice};
+    pub use macros::entry;
 }
 
 /// Helper macro to build an input processor.
@@ -21,7 +23,9 @@ macro_rules! from_input {
     ) => {
         impl $crate::input::FromInput for $out {
             #[inline]
-            fn from_input(p: &mut $crate::input::Input) -> core::result::Result<Self, $crate::input::InputError> {
+            fn from_input(
+                p: &mut $crate::input::Input,
+            ) -> core::result::Result<Self, $crate::input::InputError> {
                 let pos = p.index();
                 let value = <$ty as $crate::input::FromInput>::from_input(p)?;
 
