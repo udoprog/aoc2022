@@ -161,7 +161,7 @@ impl Input {
             .unwrap_or_default();
 
         LineCol {
-            line: line,
+            line,
             column: data.get(last.saturating_add(1)..).unwrap_or_default().len(),
         }
     }
@@ -213,11 +213,11 @@ impl Input {
     }
 
     /// Skip whitespace and return the number of lines skipped.
-    fn skip_whitespace(&mut self) -> Result<usize> {
+    fn skip_whitespace(&mut self) -> usize {
         let start = self.index;
         self.consume_whitespace();
         let data = self.data.get(start..self.index).unwrap_or_default();
-        Ok(memchr::memchr_iter(b'\n', data).count())
+        memchr::memchr_iter(b'\n', data).count()
     }
 
     /// Get the next line of input.
@@ -225,7 +225,7 @@ impl Input {
     fn next_line(&mut self) -> Option<Range<usize>> {
         let data = self.data.get(self.index..self.range.end)?;
 
-        let Some(at) = memchr::memchr(b'\n', data.as_ref()) else {
+        let Some(at) = memchr::memchr(b'\n', data) else {
             self.index = self.range.end;
             return Some(self.index..self.index);
         };
@@ -497,7 +497,7 @@ impl FromInput for Ws {
 
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
-        Ok(Self(p.skip_whitespace()?))
+        Ok(Self(p.skip_whitespace()))
     }
 }
 

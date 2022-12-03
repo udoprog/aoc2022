@@ -21,10 +21,8 @@ pub(crate) fn build(
 
     config.validate(&mut errors);
 
-    let item = parser::ItemParser::new(item_stream.clone(), &mut buf);
+    let item = parser::ItemParser::new(item_stream, &mut buf);
     let item = item.parse();
-
-    item.validate(&mut errors);
 
     let mut stream = TokenStream::default();
 

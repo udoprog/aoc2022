@@ -37,7 +37,7 @@ impl Buf {
 
     /// Get the next element out of the ring buffer.
     pub(crate) fn next(&mut self) -> Option<TokenTree> {
-        if let Some(head) = self.ring.get_mut(self.tail % BUF).and_then(|s| s.take()) {
+        if let Some(head) = self.ring.get_mut(self.tail % BUF).and_then(Option::take) {
             self.tail += 1;
             Some(head)
         } else {
@@ -74,7 +74,7 @@ impl Buf {
         use std::fmt::Write;
 
         self.string.clear();
-        let _ = write!(&mut self.string, "{}", value);
+        let _ = write!(&mut self.string, "{value}");
         self.string.as_str()
     }
 }
@@ -150,7 +150,7 @@ impl<'a> BaseParser<'a> {
         match out {
             [Some((span, head)), tail] => Some(Punct {
                 span,
-                chars: [head, tail.map(|(_, c)| c).unwrap_or('\0')],
+                chars: [head, tail.map_or('\0', |(_, c)| c)],
             }),
             _ => None,
         }

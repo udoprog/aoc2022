@@ -75,15 +75,13 @@ impl<'a> ConfigParser<'a> {
                     Some(())
                 }
                 name => {
-                    self.errors.push(Error::new(
-                        ident.span(),
-                        format!("unknown option `{}`", name),
-                    ));
+                    self.errors
+                        .push(Error::new(ident.span(), format!("unknown option `{name}`")));
                     None
                 }
             },
             tt => {
-                let span = tt.map(|tt| tt.span()).unwrap_or_else(Span::call_site);
+                let span = tt.map_or_else(Span::call_site, |tt| tt.span());
                 self.errors.push(Error::new(span, "expected identifier"));
                 None
             }
@@ -95,7 +93,7 @@ impl<'a> ConfigParser<'a> {
         match self.base.bump() {
             Some(TokenTree::Literal(literal)) => Some(literal),
             tt => {
-                let span = tt.map(|tt| tt.span()).unwrap_or_else(Span::call_site);
+                let span = tt.map_or_else(Span::call_site, |tt| tt.span());
                 self.errors.push(Error::new(span, "expected literal"));
                 None
             }
@@ -107,7 +105,7 @@ impl<'a> ConfigParser<'a> {
         match self.base.bump() {
             Some(tt) => Some(tt),
             tt => {
-                let span = tt.map(|tt| tt.span()).unwrap_or_else(Span::call_site);
+                let span = tt.map_or_else(Span::call_site, |tt| tt.span());
                 self.errors.push(Error::new(span, "expected tt"));
                 None
             }
@@ -153,7 +151,7 @@ impl<'a> ItemParser<'a> {
 
         while let Some(tt) = self.base.bump() {
             match &tt {
-                TokenTree::Ident(ident) => match self.base.buf.display_as_str(&ident) {
+                TokenTree::Ident(ident) => match self.base.buf.display_as_str(ident) {
                     "fn" => {
                         if fn_name.is_none() {
                             next_is_name = true;

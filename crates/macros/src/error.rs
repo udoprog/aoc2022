@@ -32,7 +32,7 @@ impl IntoTokens for Error {
         let mut message = Literal::string(self.message.as_ref());
         message.set_span(self.span);
 
-        let message = proc_macro::TokenStream::from_iter(once(TokenTree::Literal(message)));
+        let message = once(TokenTree::Literal(message)).collect();
         let mut group = Group::new(Delimiter::Brace, message);
         group.set_span(self.span);
 

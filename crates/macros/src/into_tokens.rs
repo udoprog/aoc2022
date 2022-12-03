@@ -166,6 +166,7 @@ impl IntoTokens for &[TokenTree] {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct FromFn<T>(T);
 
 impl<T> IntoTokens for FromFn<T>
@@ -178,21 +179,12 @@ where
     }
 }
 
-/// Construct a [IntoTokens] implementation from a callback function.
+/// Construct a [`IntoTokens`] implementation from a callback function.
 pub(crate) fn from_fn<T>(f: T) -> FromFn<T>
 where
     T: FnOnce(&mut SpannedStream<'_>),
 {
     FromFn(f)
-}
-
-impl<T> Clone for FromFn<T>
-where
-    T: Clone,
-{
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
 }
 
 impl<T> Copy for FromFn<T> where T: Copy {}

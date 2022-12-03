@@ -67,10 +67,14 @@ pub fn input(
 }
 
 /// Prepare an input processor.
+///
+/// This declares static storage for the processed input because it's much
+/// easier to deal with than lifetimes and memory for it will be freed once the
+/// process exists *anyway*.
 #[macro_export]
 macro_rules! input {
     ($path:literal) => {
-        $crate::input!($path, 32768)
+        $crate::input!($path, 8192)
     };
 
     ($path:literal, $buf:literal) => {{
