@@ -8,8 +8,8 @@ fn main() -> Result<()> {
 
     while let Some(data) = input.try_line::<&str>()? {
         let (first, second) = data.split_at(data.len() / 2);
-        let Set(first) = set(first);
-        let Set(second) = set(second);
+        let first = set(first);
+        let second = set(second);
         part1 += (first & second).trailing_zeros();
     }
 
@@ -35,9 +35,9 @@ fn score(c: char) -> u64 {
 }
 
 lib::from_input! {
-    |v: &'static str| -> Set(u64) { Ok(set(v)) }
+    |v: &'static str| -> Set(u64) { Ok(Set(set(v))) }
 }
 
-fn set(string: &str) -> Set {
-    Set(string.chars().fold(0, |n, c| n | 1u64 << score(c)))
+fn set(string: &str) -> u64 {
+    string.chars().fold(0, |n, c| n | 1u64 << score(c))
 }

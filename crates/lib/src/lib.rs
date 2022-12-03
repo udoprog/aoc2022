@@ -1,4 +1,5 @@
 mod input;
+
 pub use self::input::{FromInput, Input, InputError, LineCol, Nl, Ws};
 
 #[doc(hidden)]
@@ -9,7 +10,7 @@ pub mod macro_support {
 pub mod prelude {
     //! Helper prelude with useful imports.
     pub use crate::input::{Nl, Ws};
-    pub use anyhow::{anyhow, bail, Result};
+    pub use anyhow::{anyhow, bail, Result, Context};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
 }
 
@@ -22,10 +23,10 @@ macro_rules! from_input {
 
         impl $crate::FromInput for $out {
             #[inline]
-            fn from_input(p: &mut $crate::Input) -> Result<Self, $crate::InputError> {
+            fn from_input(p: &mut $crate::Input) -> core::result::Result<Self, $crate::InputError> {
                 let value = <$ty as $crate::FromInput>::from_input(p)?;
 
-                match (|$value: $ty| -> Result<$out, $crate::macro_support::Error> { $block })(
+                match (|$value: $ty| -> core::result::Result<$out, $crate::macro_support::Error> { $block })(
                     value,
                 ) {
                     Ok(value) => Ok(value),
@@ -36,13 +37,43 @@ macro_rules! from_input {
     };
 }
 
+/// Input processing.
+pub fn input(
+    path: &'static str,
+    read_path: &str,
+    storage: &'static mut String,
+) -> anyhow::Result<Input> {
+    use anyhow::{anyhow, Context};
+    use std::fs::File;
+    use std::io::{Read};
+
+    return inner(path, read_path, storage).with_context(|| anyhow!("{path}"));
+
+    fn inner(
+        path: &'static str,
+        read_path: &str,
+        storage: &'static mut String,
+    ) -> anyhow::Result<Input> {
+        let mut file = File::open(read_path)?;
+        let mut buf = String::with_capacity(4096);
+        file.read_to_string(&mut buf)?;
+        *storage = buf;
+        Ok(Input::new(path, storage.as_str()))
+    }
+}
+
 /// Prepare an input processor.
 #[macro_export]
 macro_rules! input {
-    ($path:literal) => {{
+    ($path:literal) => {
+        $crate::input!($path, 32768)
+    };
+
+    ($path:literal, $buf:literal) => {{
+        static mut STORAGE: String = String::new();
         let path = concat!("inputs/", $path);
-        let string = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/inputs/", $path));
-        $crate::Input::new(path, string)
+        let read_path = concat!(env!("CARGO_MANIFEST_DIR"), "/inputs/", $path);
+        $crate::input(path, read_path, unsafe { &mut STORAGE })?
     }};
 }
 

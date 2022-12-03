@@ -5,7 +5,7 @@ fn main() -> Result<()> {
     totals.sort();
 
     let top3: u32 = totals.iter().rev().take(3).sum();
-    let top1 = *totals.last().ok_or_else(|| anyhow!("missing top"))?;
+    let top1 = *totals.last().context("missing top")?;
 
     assert_eq!(top1, 70764);
     assert_eq!(top3, 203905);
