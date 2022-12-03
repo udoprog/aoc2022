@@ -69,6 +69,11 @@ impl<'a> ConfigParser<'a> {
                     config.input_file = Some(self.parse_literal()?);
                     Some(())
                 }
+                "expect" => {
+                    self.parse_eq()?;
+                    config.expect = Some(self.parse_tt()?);
+                    Some(())
+                }
                 name => {
                     self.errors.push(Error::new(
                         ident.span(),
@@ -92,6 +97,18 @@ impl<'a> ConfigParser<'a> {
             tt => {
                 let span = tt.map(|tt| tt.span()).unwrap_or_else(Span::call_site);
                 self.errors.push(Error::new(span, "expected literal"));
+                None
+            }
+        }
+    }
+
+    /// Parse the next value as any kind of token tree.
+    fn parse_tt(&mut self) -> Option<TokenTree> {
+        match self.base.bump() {
+            Some(tt) => Some(tt),
+            tt => {
+                let span = tt.map(|tt| tt.span()).unwrap_or_else(Span::call_site);
+                self.errors.push(Error::new(span, "expected tt"));
                 None
             }
         }
@@ -129,7 +146,6 @@ impl<'a> ItemParser<'a> {
     /// Parse and produce the corresponding token stream.
     pub(crate) fn parse(mut self) -> ItemOutput {
         let start = self.base.len();
-        let mut signature = None;
         let mut block = None;
         let mut fn_name = None;
         let mut next_is_name = false;
@@ -154,7 +170,6 @@ impl<'a> ItemParser<'a> {
                         args = Some(self.base.len() - start);
                     }
                     Delimiter::Brace if block.is_none() => {
-                        signature = Some(start..self.base.len());
                         block = Some(self.base.len());
                     }
                     _ => {}
@@ -172,7 +187,7 @@ impl<'a> ItemParser<'a> {
 
         let tokens = self.base.into_tokens();
 
-        ItemOutput::new(tokens, fn_name, signature, block, args)
+        ItemOutput::new(tokens, fn_name, block)
     }
 
     /// Since generics are implemented using angle brackets.

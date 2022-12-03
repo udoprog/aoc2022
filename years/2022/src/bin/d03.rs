@@ -1,7 +1,7 @@
 use lib::prelude::*;
 
-#[entry(input = "d03.txt")]
-fn main(mut input: Input) -> Result<()> {
+#[entry(input = "d03.txt", expect = (8233, 2821))]
+fn main(mut input: Input) -> Result<(u32, u32)> {
     let mut part1 = 0;
     let mut part2 = 0;
 
@@ -16,9 +16,7 @@ fn main(mut input: Input) -> Result<()> {
         part2 += (a & b & c).trailing_zeros();
     }
 
-    assert_eq!(part1, 8233);
-    assert_eq!(part2, 2821);
-    Ok(())
+    Ok((part1, part2))
 }
 
 fn score(c: u8) -> u64 {

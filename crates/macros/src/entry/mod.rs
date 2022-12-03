@@ -30,7 +30,7 @@ pub(crate) fn build(
 
     let span = item.block_span().unwrap_or_else(Span::call_site);
 
-    item.expand_item(config).into_tokens(&mut stream, span);
+    item.expand_item(&config).into_tokens(&mut stream, span);
     format_item_errors(errors).into_tokens(&mut stream, span);
 
     stream.into_token_stream()
