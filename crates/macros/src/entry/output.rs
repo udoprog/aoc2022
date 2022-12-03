@@ -42,9 +42,6 @@ impl ItemOutput {
         }
     }
 
-    /// Validate the parsed item.
-    pub(crate) fn validate(&self, _: &mut Vec<Error>) {}
-
     pub(crate) fn block_span(&self) -> Option<Span> {
         let block = *self.block.as_ref()?;
         Some(self.tokens.get(block)?.span())
@@ -105,7 +102,7 @@ impl ItemOutput {
         let bench_mode = (
             (mode, S, "Bench"),
             T,
-            braced(bencher(m, BenchCall(fn_name.clone(), input_arg))),
+            braced(bencher(m, BenchCall(fn_name.clone(), input_arg), compare)),
         );
 
         let match_mode = (
@@ -126,7 +123,7 @@ impl ItemOutput {
     }
 }
 
-fn bencher<'a, C: 'a>(m: Mod, call: C) -> impl IntoTokens + 'a
+fn bencher<'a, C: 'a>(m: Mod, call: C, compare: Compare<'a>) -> impl IntoTokens + 'a
 where
     C: IntoTokens + 'a,
 {
@@ -139,7 +136,15 @@ where
 
         s.write((
             ("b", '.', "iter"),
-            parens(('&', "opts", ',', ['|', '|'], braced(call))),
+            parens((
+                '&',
+                "opts",
+                ',',
+                compare.expect(),
+                ',',
+                ['|', '|'],
+                braced(call),
+            )),
             ('?', ';'),
         ));
     })
@@ -203,22 +208,65 @@ enum Compare<'a> {
     Expected(&'a TokenTree),
 }
 
-impl Compare<'_> {
-    fn binding(&self) -> &'static str {
+impl<'a> Compare<'a> {
+    fn binding(self) -> &'static str {
         match self {
             Compare::Ignore => "_",
             Compare::Expected(..) => "value",
         }
     }
+
+    fn expect(self) -> CompareExpect<'a> {
+        match self {
+            Compare::Ignore => CompareExpect::Ignore,
+            Compare::Expected(value) => CompareExpect::Expected(value),
+        }
+    }
 }
 
 impl IntoTokens for Compare<'_> {
-    fn into_tokens(self, stream: &mut TokenStream, span: Span) {
+    fn into_tokens(self, stream: &mut TokenStream, _: Span) {
         if let Compare::Expected(tt) = self {
+            let message = TokenTree::Literal(Literal::string("{:?} (value) != {:?} (expected)"));
+
+            stream.write(tt.span(), ("let", "expected", '=', tt.clone(), ';'));
+
             stream.write(
-                span,
-                ("assert_eq", '!', parens(("value", ',', tt.clone())), ';'),
+                tt.span(),
+                (
+                    "assert",
+                    '!',
+                    parens((
+                        "value",
+                        ['=', '='],
+                        "expected",
+                        ',',
+                        message,
+                        ',',
+                        ("value", ',', "expected"),
+                    )),
+                    ';',
+                ),
             );
+        }
+    }
+}
+
+enum CompareExpect<'a> {
+    Ignore,
+    Expected(&'a TokenTree),
+}
+
+impl IntoTokens for CompareExpect<'_> {
+    fn into_tokens(self, stream: &mut TokenStream, span: Span) {
+        match self {
+            CompareExpect::Ignore => {
+                stream.write(span, "None");
+            }
+            CompareExpect::Expected(value) => {
+                stream.write(span, "Some");
+                stream.write(span, parens(value.clone()));
+            }
         }
     }
 }

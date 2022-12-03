@@ -39,7 +39,7 @@ impl TokenStream {
         Checkpoint(start): Checkpoint,
     ) {
         let it = self.inner.drain(start..);
-        let mut group = Group::new(delimiter, proc_macro::TokenStream::from_iter(it));
+        let mut group = Group::new(delimiter, it.collect());
         group.set_span(span);
         self.push(TokenTree::Group(group));
     }

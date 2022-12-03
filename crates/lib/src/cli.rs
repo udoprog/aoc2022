@@ -2,10 +2,11 @@
 
 use std::fmt;
 use std::io::{self, Write};
+use std::ops::AddAssign;
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Default warmup period in seconds.
 const DEFAULT_WARMUP: u64 = 5;
@@ -99,24 +100,23 @@ impl Opts {
     }
 }
 
+#[derive(Default)]
 pub struct Bencher {}
 
 impl Bencher {
     /// Construct a new bencher.
     #[inline]
     pub fn new() -> Self {
-        Self {}
+        Self::default()
     }
 
     /// Bench the given fn.
     #[inline]
-    pub fn iter<T, O>(&mut self, opts: &Opts, mut iter: T) -> Result<()>
+    pub fn iter<T, O>(&mut self, opts: &Opts, expected: Option<O>, iter: T) -> Result<()>
     where
         T: FnMut() -> Result<O>,
+        O: fmt::Debug + PartialEq,
     {
-        let warmup = Duration::from_secs(opts.warmup.unwrap_or(DEFAULT_WARMUP));
-        let time = Duration::from_secs(opts.time.unwrap_or(DEFAULT_TIME));
-
         let stdout = std::io::stdout();
 
         let mut o = Output {
@@ -128,14 +128,43 @@ impl Bencher {
             },
         };
 
+        if let Err(e) = self.inner_iter(&mut o, opts, expected, iter) {
+            o.error(e)?;
+        }
+
+        Ok(())
+    }
+
+    fn inner_iter<T, O>(
+        &mut self,
+        o: &mut Output<impl Write>,
+        opts: &Opts,
+        expected: Option<O>,
+        mut iter: T,
+    ) -> Result<()>
+    where
+        T: FnMut() -> Result<O>,
+        O: fmt::Debug + PartialEq,
+    {
+        let warmup = Duration::from_secs(opts.warmup.unwrap_or(DEFAULT_WARMUP));
+        let time = Duration::from_secs(opts.time.unwrap_or(DEFAULT_TIME));
+
         if !warmup.is_zero() {
             let start = Instant::now();
 
             o.info(format_args!("warming up ({warmup:?})..."))?;
 
             loop {
-                let _ = black_box(iter()?);
+                let value = iter()?;
                 let cur = Instant::now();
+
+                if let Some(expect) = &expected {
+                    if value != *expect {
+                        bail!("{value:?} (value) != {expect:?} (expected)");
+                    }
+                }
+
+                let _ = black_box(value);
 
                 if cur.duration_since(start) >= warmup {
                     break;
@@ -154,8 +183,16 @@ impl Bencher {
 
             for _ in 0..count {
                 let s = Instant::now();
-                let _ = black_box(iter()?);
+                let value = iter()?;
                 let cur = Instant::now();
+
+                if let Some(expect) = &expected {
+                    if value != *expect {
+                        bail!("{value:?} (value) != {expect:?} (expected)");
+                    }
+                }
+
+                let _ = black_box(value);
                 samples.push(cur.duration_since(s));
             }
         } else {
@@ -166,9 +203,17 @@ impl Bencher {
             loop {
                 let s = Instant::now();
 
-                let _ = black_box(iter()?);
+                let value = iter()?;
 
                 let cur = Instant::now();
+
+                if let Some(expect) = &expected {
+                    if value != *expect {
+                        bail!("{value:?} (value) != {expect:?} (expected)");
+                    }
+                }
+
+                let _ = black_box(value);
 
                 if cur.duration_since(start) >= time {
                     break;
@@ -188,39 +233,86 @@ impl Bencher {
         let p95 = samples.get(p95).or(samples.last());
         let p99 = samples.get(p99).or(samples.last());
 
-        let avg = samples.iter().map(|s| s.as_nanos()).sum::<u128>();
-
-        let (Some(&p50), Some(&p95), Some(&p99), Some(samples)) = (p50, p95, p99, (samples.len() != 0).then_some(samples.len())) else {
+        let (Some(&p50), Some(&p95), Some(&p99), Some(count)) = (p50, p95, p99, (!samples.is_empty()).then_some(samples.len())) else {
             o.error("no samples :(")?;
             return Ok(());
         };
 
-        let avg = avg / (samples as u128);
-        let avg = Duration::from_nanos(avg as u64);
-        let report = Report::new(p50, p95, p99, samples, avg);
+        let min = samples.first().copied().context("missing min")?;
+        let max = samples.last().copied().context("missing max")?;
+        let sum = samples.iter().copied().sum();
+        let report = Report::new(p50, p95, p99, count, min, max, sum);
         o.report(&report)?;
         Ok(())
     }
 }
 
-#[derive(Serialize)]
-struct Report {
-    p50: Duration,
-    p95: Duration,
-    p99: Duration,
-    samples: usize,
-    avg: Duration,
+#[derive(Default, Deserialize, Serialize)]
+pub struct Report {
+    pub p50: Duration,
+    pub p95: Duration,
+    pub p99: Duration,
+    pub count: usize,
+    pub min: Duration,
+    pub max: Duration,
+    pub sum: Duration,
 }
 
 impl Report {
-    fn new(p50: Duration, p95: Duration, p99: Duration, samples: usize, avg: Duration) -> Self {
+    fn new(
+        p50: Duration,
+        p95: Duration,
+        p99: Duration,
+        samples: usize,
+        min: Duration,
+        max: Duration,
+        sum: Duration,
+    ) -> Self {
         Self {
             p50,
             p95,
             p99,
-            samples,
-            avg,
+            count: samples,
+            min,
+            max,
+            sum,
         }
+    }
+}
+
+impl fmt::Display for Report {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Report {
+            p50,
+            p95,
+            p99,
+            count,
+            min,
+            max,
+            sum,
+        } = self;
+
+        let avg = if *count == 0 {
+            Duration::default()
+        } else {
+            Duration::from_nanos(
+                u64::try_from((sum.as_nanos()) / (*count as u128)).unwrap_or_default(),
+            )
+        };
+
+        write!(f, "count: {count}, min: {min:?}, max: {max:?}, avg: {avg:?}, 50th: {p50:?}, 95th: {p95:?}, 99th: {p99:?}")
+    }
+}
+
+impl AddAssign<Report> for Report {
+    fn add_assign(&mut self, rhs: Report) {
+        self.p50 += rhs.p50;
+        self.p95 += rhs.p95;
+        self.p99 += rhs.p99;
+        self.count += rhs.count;
+        self.min = self.min.min(rhs.min);
+        self.max = self.max.max(rhs.max);
+        self.sum += rhs.sum;
     }
 }
 
@@ -265,7 +357,7 @@ where
         match &self.kind {
             OutputKind::Json => {
                 self.json(&Line {
-                    kind: LineKind::Message,
+                    ty: LineType::Message,
                     data: Message { output: m, kind },
                 })?;
             }
@@ -281,22 +373,12 @@ where
         match &self.kind {
             OutputKind::Json => {
                 self.json(&Line {
-                    kind: LineKind::Report,
+                    ty: LineType::Report,
                     data: report,
                 })?;
             }
             OutputKind::Normal => {
-                let Report {
-                    p50,
-                    p95,
-                    p99,
-                    samples,
-                    avg,
-                } = report;
-
-                writeln!(self.out, "50th: {p50:?}, 95th: {p95:?}, 99th: {p99:?}")?;
-                writeln!(self.out, "samples: {}", samples)?;
-                writeln!(self.out, "average: {avg:?}")?;
+                writeln!(self.out, "{report}")?;
             }
         }
 
@@ -315,13 +397,14 @@ where
 
 #[derive(Serialize)]
 struct Line<T> {
-    kind: LineKind,
+    #[serde(rename = "type")]
+    ty: LineType,
     data: T,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "kebab-case")]
-enum LineKind {
+enum LineType {
     Message,
     Report,
 }
