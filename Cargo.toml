@@ -1,12 +1,2 @@
-[package]
-name = "aoc"
-version = "0.0.0"
-edition = "2021"
-
-[dependencies]
-lib = { path = "crates/lib" }
-anyhow = { version = "1.0.66", features = ["backtrace"] }
-thiserror = "1.0.37"
-
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "years/*"]

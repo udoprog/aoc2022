@@ -8,8 +8,8 @@ fn main() -> Result<()> {
 
     while let Some(data) = input.try_line::<&str>()? {
         let (first, second) = data.split_at(data.len() / 2);
-        let first = Set::from_string(first).0;
-        let second = Set::from_string(second).0;
+        let Set(first) = set(first);
+        let Set(second) = set(second);
         part1 += (first & second).trailing_zeros();
     }
 
@@ -26,26 +26,18 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn score(c: char) -> u32 {
+fn score(c: char) -> u64 {
     match c {
-        'a'..='z' => (c as u32 - 'a' as u32) + 1,
-        'A'..='Z' => (c as u32 - 'A' as u32) + 27,
-        c => panic!("{c}"),
+        'a'..='z' => (c as u64 - 'a' as u64) + 1,
+        'A'..='Z' => (c as u64 - 'A' as u64) + 27,
+        _ => 0,
     }
 }
 
 lib::from_input! {
-    |v: &'static str| -> Set(u64) { Ok(Set::from_string(v)) }
+    |v: &'static str| -> Set(u64) { Ok(set(v)) }
 }
 
-impl Set {
-    fn from_string(string: &str) -> Self {
-        let mut n = 0u64;
-
-        for c in string.chars() {
-            n |= 1u64 << (score(c) as u64);
-        }
-
-        Self(n)
-    }
+fn set(string: &str) -> Set {
+    Set(string.chars().fold(0, |n, c| n | 1u64 << score(c)))
 }
