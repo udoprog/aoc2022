@@ -6,7 +6,7 @@ use std::fmt;
 
 type Result<T> = std::result::Result<T, InputError>;
 
-/// Parser error.
+/// Various forms of input errors.
 #[derive(Debug)]
 pub struct InputError {
     path: &'static str,
@@ -14,7 +14,7 @@ pub struct InputError {
     kind: ErrorKind,
 }
 
-impl<'a> InputError {
+impl InputError {
     pub fn any(path: &'static str, pos: LineCol, error: anyhow::Error) -> Self {
         Self {
             path,
@@ -150,6 +150,7 @@ impl Input {
 
     /// Parse the next value as T.
     #[inline]
+    #[allow(clippy::should_implement_trait)]
     pub fn next<T>(&mut self) -> Result<T>
     where
         T: FromInput,

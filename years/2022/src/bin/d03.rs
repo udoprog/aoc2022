@@ -18,7 +18,7 @@ fn main() -> Result<()> {
     while let Some(Set(a)) = input.try_line::<Set>()? {
         let Set(b) = input.line::<Set>()?;
         let Set(c) = input.line::<Set>()?;
-        part2 += ((a & b) & c).trailing_zeros();
+        part2 += (a & b & c).trailing_zeros();
     }
 
     assert_eq!(part1, 8233);
