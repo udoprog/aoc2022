@@ -12,15 +12,15 @@ pub mod prelude {
     pub use crate::input::{Nl, Ws};
     pub use anyhow::{anyhow, bail, Result, Context};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
+    pub use bstr::{BStr, ByteSlice};
 }
 
+/// Helper macro to build an input processor.
 #[macro_export]
 macro_rules! from_input {
     (
-        |$value:ident: $ty:ty| -> $out:ident($out_ty:ty) $block:block
+        |$value:ident: $ty:ty| -> $out:ident $block:block
     ) => {
-        struct $out($out_ty);
-
         impl $crate::FromInput for $out {
             #[inline]
             fn from_input(p: &mut $crate::Input) -> core::result::Result<Self, $crate::InputError> {
@@ -46,6 +46,7 @@ pub fn input(
     use anyhow::{anyhow, Context};
     use std::fs::File;
     use std::io::{Read};
+    use bstr::BStr;
 
     return inner(path, read_path, storage).with_context(|| anyhow!("{path}"));
 
@@ -58,7 +59,7 @@ pub fn input(
         let mut buf = String::with_capacity(4096);
         file.read_to_string(&mut buf)?;
         *storage = buf;
-        Ok(Input::new(path, storage.as_str()))
+        Ok(Input::new(path, BStr::new(storage)))
     }
 }
 

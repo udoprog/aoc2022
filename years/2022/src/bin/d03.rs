@@ -6,7 +6,7 @@ fn main() -> Result<()> {
     let mut part1 = 0;
     let mut part2 = 0;
 
-    while let Some(data) = input.try_line::<&str>()? {
+    while let Some(data) = input.try_line::<&[u8]>()? {
         let (first, second) = data.split_at(data.len() / 2);
         let first = set(first);
         let second = set(second);
@@ -15,9 +15,7 @@ fn main() -> Result<()> {
 
     input.reset();
 
-    while let Some(Set(a)) = input.try_line::<Set>()? {
-        let Set(b) = input.line::<Set>()?;
-        let Set(c) = input.line::<Set>()?;
+    while let Some((Set(a), Set(b), Set(c))) = input.try_next::<(Set, Set, Set)>()? {
         part2 += (a & b & c).trailing_zeros();
     }
 
@@ -26,18 +24,20 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn score(c: char) -> u64 {
+fn score(c: u8) -> u64 {
     match c {
-        'a'..='z' => (c as u64 - 'a' as u64) + 1,
-        'A'..='Z' => (c as u64 - 'A' as u64) + 27,
+        b'a'..=b'z' => (c as u64 - 'a' as u64) + 1,
+        b'A'..=b'Z' => (c as u64 - 'A' as u64) + 27,
         _ => 0,
     }
 }
 
+struct Set(u64);
+
 lib::from_input! {
-    |v: &'static str| -> Set(u64) { Ok(Set(set(v))) }
+    |v: &[u8]| -> Set { Ok(Set(set(v))) }
 }
 
-fn set(string: &str) -> u64 {
-    string.chars().fold(0, |n, c| n | 1u64 << score(c))
+fn set(string: &[u8]) -> u64 {
+    string.bytes().fold(0, |n, c| n | 1u64 << score(c))
 }
