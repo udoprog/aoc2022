@@ -20,16 +20,12 @@ fn main() -> Result<()> {
 
     input.reset();
 
-    while let Some(a) = input.try_line::<&str>()? {
-        let b = input.line::<&str>()?;
-        let c = input.line::<&str>()?;
+    while let Some(Set(a)) = input.try_line::<Set>()? {
+        let Set(b) = input.line::<Set>()?;
+        let Set(c) = input.line::<Set>()?;
 
-        for d in a.chars() {
-            if b.contains(d) && c.contains(d) {
-                part2 += score(d);
-                break;
-            }
-        }
+        let out = (a & b) & c;
+        part2 += out.trailing_zeros();
     }
 
     assert_eq!(total, 8233);
@@ -42,5 +38,17 @@ fn score(c: char) -> u32 {
         'a'..='z' => (c as u32 - 'a' as u32) + 1,
         'A'..='Z' => (c as u32 - 'A' as u32) + 27,
         c => panic!("{c}"),
+    }
+}
+
+lib::from_input! {
+    |v: &'static str| -> Set(u64) {
+        let mut n = 0u64;
+
+        for c in v.chars() {
+            n |= 1u64 << (score(c) as u64);
+        }
+
+        Ok(Set(n))
     }
 }
