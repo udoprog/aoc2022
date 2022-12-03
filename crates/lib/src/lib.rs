@@ -24,6 +24,7 @@ macro_rules! from_input {
         impl $crate::FromInput for $out {
             #[inline]
             fn from_input(p: &mut $crate::Input) -> core::result::Result<Self, $crate::InputError> {
+                let pos = p.index();
                 let value = <$ty as $crate::FromInput>::from_input(p)?;
 
                 match (|$value: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
@@ -31,7 +32,7 @@ macro_rules! from_input {
                 })(value)
                 {
                     Ok(value) => Ok(value),
-                    Err(e) => Err($crate::InputError::any(p.path(), p.pos(), e)),
+                    Err(e) => Err($crate::InputError::any(p.path(), p.pos_of(pos), e)),
                 }
             }
         }

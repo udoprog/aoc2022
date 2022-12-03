@@ -35,7 +35,7 @@ fn score(c: u8) -> u64 {
 struct Set(u64);
 
 lib::from_input! {
-    |v: &[u8]| -> Set { Ok(Set(set(v))) }
+    |v: &BStr| -> Set { Ok(Set(set(v))) }
 }
 
 fn set(string: &[u8]) -> u64 {
