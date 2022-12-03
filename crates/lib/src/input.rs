@@ -54,6 +54,7 @@ enum ErrorKind {
     NotFloat,
     NotChar,
     NotLine,
+    ArrayCapacity(usize),
     Boxed(anyhow::Error),
 }
 
@@ -64,6 +65,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::NotFloat => write!(f, "not a float"),
             ErrorKind::NotChar => write!(f, "not a character"),
             ErrorKind::NotLine => write!(f, "not a line"),
+            ErrorKind::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
             ErrorKind::Boxed(error) => error.fmt(f),
         }
     }
@@ -89,7 +91,7 @@ impl LineCol {
 
 impl fmt::Display for LineCol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line + 1, self.column)
+        write!(f, "{}:{}", self.line + 1, self.column + 1)
     }
 }
 
@@ -149,6 +151,16 @@ impl Input {
         T::from_input_whitespace(self)
     }
 
+    /// Parse a line according to the given specification.
+    #[inline]
+    pub fn line<T>(&mut self) -> Result<T>
+    where
+        T: FromInput,
+    {
+        let Nl(mut line) = self.next()?;
+        line.next()
+    }
+
     /// Parse the next value as T.
     #[inline]
     pub fn try_next<T>(&mut self) -> Result<Option<T>>
@@ -156,6 +168,19 @@ impl Input {
         T: FromInput,
     {
         T::try_from_input_whitespace(self)
+    }
+
+    /// Parse a line according to the given specification.
+    #[inline]
+    pub fn try_line<T>(&mut self) -> Result<Option<T>>
+    where
+        T: FromInput,
+    {
+        let Some(Nl(mut line)) = self.try_next()? else {
+            return Ok(None);
+        };
+
+        Ok(Some(line.next()?))
     }
 
     /// Get the next line of input.
@@ -434,5 +459,43 @@ impl FromInput for Ws {
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
         Ok(Self(p.skip_whitespace()?))
+    }
+}
+
+impl<T, const N: usize> FromInput for arrayvec::ArrayVec<T, N>
+where
+    T: FromInput,
+{
+    #[inline]
+    fn from_input(p: &mut Input) -> Result<Self> {
+        let mut output = arrayvec::ArrayVec::new();
+        let mut pos = p.pos;
+
+        while let Some(element) = T::try_from_input_whitespace(p)? {
+            if output.remaining_capacity() == 0 {
+                return Err(InputError::new(p.path, pos, ErrorKind::ArrayCapacity(N)));
+            }
+
+            output.push(element);
+            pos = p.pos;
+        }
+
+        Ok(output)
+    }
+}
+
+impl<T> FromInput for Vec<T>
+where
+    T: FromInput,
+{
+    #[inline]
+    fn from_input(p: &mut Input) -> Result<Self> {
+        let mut output = Vec::new();
+
+        while let Some(element) = T::try_from_input_whitespace(p)? {
+            output.push(element);
+        }
+
+        Ok(output)
     }
 }

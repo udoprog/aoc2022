@@ -10,6 +10,7 @@ pub mod prelude {
     //! Helper prelude with useful imports.
     pub use crate::input::{Nl, Ws};
     pub use anyhow::{anyhow, bail, Result};
+    pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
 }
 
 #[macro_export]
