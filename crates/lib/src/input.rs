@@ -84,19 +84,12 @@ pub struct LineCol {
 }
 
 impl LineCol {
-    fn new_line(&mut self) {
-        self.line += 1;
-        self.column = 0;
-    }
-
-    fn new_column(&mut self) {
-        self.column += 1;
-    }
+    const EMPTY: Self = Self { line: 0, column: 0 };
 }
 
 impl fmt::Display for LineCol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line + 1, self.column + 1)
+        write!(f, "{}:{}", self.line + 1, self.column)
     }
 }
 
@@ -106,34 +99,40 @@ pub struct Input {
     /// Path being parsed.
     path: &'static str,
     /// The path being parsed.
-    data: &'static BStr,
-    /// Index being read.
+    data: &'static [u8],
+    /// Index into the current slice.
     index: usize,
-    // Current reader location.
-    pos: LineCol,
+    /// Index being read.
+    start: usize,
+    end: usize,
 }
 
 impl Input {
     /// Construct a new input processor.
     #[doc(hidden)]
-    pub fn new(path: &'static str, string: &'static BStr) -> Self {
+    pub fn new(path: &'static str, string: &'static [u8]) -> Self {
         Self {
             path,
             data: string,
             index: 0,
-            pos: LineCol::default(),
+            start: 0,
+            end: string.len(),
         }
+    }
+
+    /// Get current index.
+    pub fn index(&self) -> usize {
+        self.index
     }
 
     /// Reset input.
     pub fn reset(&mut self) {
-        self.index = 0;
-        self.pos = LineCol::default();
+        self.index = self.start;
     }
 
     /// Get remaining binary string of the input.
-    pub fn as_bstr(&self) -> &'static BStr {
-        BStr::new(self.data.get(self.index..).unwrap_or_default())
+    pub fn as_bytes(&self) -> &'static [u8] {
+        self.data.get(self.index..self.end).unwrap_or_default()
     }
 
     /// Get the current input path.
@@ -141,9 +140,33 @@ impl Input {
         self.path
     }
 
-    /// Get the current input position.
+    /// Get the current line column position.
+    #[inline]
     pub fn pos(&self) -> LineCol {
-        self.pos
+        self.pos_of(self.index)
+    }
+
+    /// Get the current input position based on the given index.
+    pub fn pos_of(&self, index: usize) -> LineCol {
+        let Some(data) = self.data.get(..=index) else {
+            return LineCol::EMPTY;
+        };
+
+        let mut line = 0;
+        let mut last = 0;
+        let mut it = memchr::memchr_iter(b'\n', data);
+
+        while let Some(n) = it.next() {
+            line += 1;
+            last = n;
+        }
+
+        let column = data.get(last.saturating_add(1)..).unwrap_or_default().len();
+
+        LineCol {
+            line,
+            column
+        }
     }
 
     /// Parse the next value as T.
@@ -194,25 +217,25 @@ impl Input {
 
     /// Skip whitespace and return the number of lines skipped.
     fn skip_whitespace(&mut self) -> Result<usize> {
-        let start = self.pos.line;
+        let start = self.index;
         self.consume_whitespace();
-        Ok(self.pos.line - start)
+        let data = self.data.get(start..self.index).unwrap_or_default();
+        Ok(memchr::memchr_iter(b'\n', data).count())
     }
 
     /// Get the next line of input.
     #[inline]
-    fn next_line(&mut self) -> Option<&'static BStr> {
-        let string = self.data.get(self.index..)?;
+    fn next_line(&mut self) -> Option<(usize, usize)> {
+        let string = self.data.get(self.index..self.end)?;
 
-        let Some(end) = memchr::memchr(b'\n', string.as_ref()) else {
-            self.index = self.data.len();
-            self.pos.column += string.len();
-            return Some(BStr::new(string));
+        let Some(at) = memchr::memchr(b'\n', string.as_ref()) else {
+            self.index = self.end;
+            return Some((self.index, self.end));
         };
 
-        self.pos.new_line();
-        self.index = self.index.saturating_add(end.saturating_add(1));
-        Some(BStr::new(string.get(..end)?))
+        let end = self.index.saturating_add(at);
+        let start = std::mem::replace(&mut self.index, end.saturating_add(1));
+        Some((start, end))
     }
 
     /// Consume whitespace.
@@ -238,7 +261,13 @@ impl Input {
 
     /// Get the byte at the given reader offset.
     fn peek_from(&self, n: usize) -> Option<u8> {
-        self.data.get(self.index.checked_add(n)?).copied()
+        let n = self.index.checked_add(n)?.min(self.end);
+
+        if n >= self.end {
+            return None;
+        }
+
+        self.data.get(n).copied()
     }
 
     /// Get the byte at the given reader offset.
@@ -253,42 +282,12 @@ impl Input {
             return;
         }
 
-        let Some(string) = self.data.get(self.index..).and_then(|s| s.get(..n)) else {
-            return;
-        };
-
-        for &c in string.iter() {
-            match c {
-                b'\n' => {
-                    self.pos.new_line();
-                }
-                c if !c.is_ascii_control() => {
-                    self.pos.new_column();
-                }
-                _ => {}
-            }
-        }
-
-        self.index = self.index.checked_add(n).expect("cursor overflow");
+        self.index = self.index.saturating_add(n).min(self.end);
     }
 
     /// Step the buffer.
     fn step(&mut self) {
-        let Some(&c) = self.data.get(self.index..).unwrap_or_default().iter().next() else {
-            return;
-        };
-
-        match c {
-            b'\n' => {
-                self.pos.new_line();
-            }
-            c if !c.is_ascii_control() => {
-                self.pos.new_column();
-            }
-            _ => {}
-        }
-
-        self.index = self.index.checked_add(1).expect("cursor overflow");
+        self.index = self.index.saturating_add(1).min(self.end);
     }
 }
 
@@ -340,10 +339,11 @@ macro_rules! integer {
     ($ty:ty, $error:ident) => {
         impl FromInput for $ty {
             fn from_input(p: &mut Input) -> Result<Self> {
-                let pos = p.pos;
+                let pos = p.index;
                 let string: &str = FromInput::from_input(p)?;
 
                 let Ok(n) = str::parse(string) else {
+                    let pos = p.pos_of(pos);
                     return Err(InputError::new(p.path, pos, ErrorKind::$error));
                 };
 
@@ -376,9 +376,10 @@ impl FromInput for char {
     fn from_input(p: &mut Input) -> Result<Self> {
         use bstr::ByteSlice;
 
-        let pos = p.pos;
+        let pos = p.index;
 
         let Some(c) = p.data.get(p.index..).and_then(|b| b.chars().next()) else {
+            let pos = p.pos_of(pos);
             return Err(InputError::new(p.path, pos, ErrorKind::NotChar));
         };
 
@@ -411,7 +412,7 @@ impl FromInput for &str {
         let data = <&[u8]>::from_input(p)?;
 
         let Ok(data) = from_utf8(data) else {
-            return Err(InputError::new(p.path, p.pos, ErrorKind::NotUtf8));
+            return Err(InputError::new(p.path, p.pos(), ErrorKind::NotUtf8));
         };
 
         Ok(data)
@@ -446,17 +447,19 @@ impl FromInput for Nl {
 
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
-        let pos = p.pos;
+        let pos = p.index;
 
-        let Some(data) = p.next_line() else {
-            return Err(InputError::new(p.path, p.pos, ErrorKind::NotLine));
+        let Some((start, end)) = p.next_line() else {
+            let pos = p.pos_of(pos);
+            return Err(InputError::new(p.path, pos, ErrorKind::NotLine));
         };
 
         Ok(Self(Input {
             path: p.path,
-            data,
-            index: 0,
-            pos,
+            data: p.data,
+            index: start,
+            start,
+            end,
         }))
     }
 }
@@ -488,15 +491,16 @@ where
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
         let mut output = arrayvec::ArrayVec::new();
-        let mut pos = p.pos;
+        let mut pos = p.index;
 
         while let Some(element) = T::try_from_input(p)? {
             if output.remaining_capacity() == 0 {
+                let pos = p.pos_of(pos);
                 return Err(InputError::new(p.path, pos, ErrorKind::ArrayCapacity(N)));
             }
 
             output.push(element);
-            pos = p.pos;
+            pos = p.index;
         }
 
         Ok(output)
