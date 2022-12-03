@@ -1,8 +1,7 @@
 use lib::prelude::*;
 
-fn main() -> Result<()> {
-    let mut input = lib::input!("d01.txt");
-
+#[entry(input = "d01.txt")]
+fn main(mut input: Input) -> Result<()> {
     let mut output = [0; 4];
     let mut calories = 0u32;
 
