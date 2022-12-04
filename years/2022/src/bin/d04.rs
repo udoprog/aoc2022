@@ -1,7 +1,7 @@
 use lib::prelude::*;
 
-type S = Split<b'-', 2, Span>;
-type O = Split<b',', 2, (S, S)>;
+type S = Split<'-', Span>;
+type O = Split<',', (S, S)>;
 
 #[entry(input = "d04.txt", expect = (582, 893))]
 fn main(mut input: Input) -> Result<(u32, u32)> {
@@ -26,11 +26,8 @@ struct Span {
     end: u32,
 }
 
-lib::from_input! {
+lib::from_input_iter! {
     |(start, end): (u32, u32)| -> Span {
-        Ok(Span {
-            start,
-            end,
-        })
+        Ok(Span { start, end })
     }
 }

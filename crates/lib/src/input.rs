@@ -119,13 +119,6 @@ pub struct Input {
 }
 
 impl Input {
-    const EMPTY: Input = Input {
-        path: "",
-        data: &[],
-        index: 0,
-        range: 0..0,
-    };
-
     /// Construct a new input processor.
     #[doc(hidden)]
     pub fn new(path: &'static str, data: &'static [u8]) -> Self {
@@ -171,7 +164,7 @@ impl Input {
     }
 
     /// Split input on the given byte.
-    pub fn split_once(&mut self, b: u8) -> Option<(Input, Input)> {
+    pub fn split_once(&self, b: u8) -> Option<(Input, Input)> {
         let data = self.data.get(self.index..self.range.end)?;
         let n = memchr::memchr(b, data)?;
 
@@ -197,25 +190,39 @@ impl Input {
     }
 
     /// Split `N` times.
-    pub fn splitn<const N: usize>(&mut self, b: u8) -> Option<[Input; N]> {
-        let mut output = [Input::EMPTY; N];
+    pub fn splitn(&self, byte: u8) -> impl InputIterator {
+        return Iterator {
+            byte,
+            last: self.index,
+            current: Some(self.clone()),
+        };
 
-        let mut current = self.clone();
-        let mut it = output.iter_mut();
-
-        let last = it.next_back();
-
-        for out in it {
-            let (head, tail) = current.split_once(b)?;
-            *out = head;
-            current = tail;
+        struct Iterator {
+            byte: u8,
+            last: usize,
+            current: Option<Input>,
         }
 
-        if let Some(out) = last {
-            *out = current;
-        }
+        impl InputIterator for Iterator {
+            /// End index for the last item iterated over.
+            fn index(&self) -> usize {
+                self.last
+            }
 
-        Some(output)
+            #[inline]
+            fn try_next(&mut self) -> Option<Input> {
+                let current = self.current.take()?;
+
+                let Some((input, next)) = current.split_once(self.byte) else {
+                    self.last = current.range.end;
+                    return Some(current);
+                };
+
+                self.last = next.range.end;
+                self.current = Some(next);
+                Some(input)
+            }
+        }
     }
 
     /// Get the current input position based on the given index.
@@ -396,27 +403,38 @@ pub trait FromInput: Sized {
     }
 }
 
-/// Parse something from a pair of inputs.
-pub trait CollectFromInput<const N: usize>: Sized {
+/// Iterator over inputs.
+pub trait InputIterator {
     #[inline]
     fn error_kind() -> ErrorKind {
         ErrorKind::UnexpectedEof
     }
 
-    /// Optionally try to confuse input ignoring leading whitespace by default.
-    fn try_collect_from_input(p: &mut Input, inputs: &mut [Input; N]) -> Result<Option<Self>>;
+    /// Get tail index of iterator.
+    fn index(&self) -> usize;
 
-    /// Collect from the given inputs.
-    fn collect_from_input(p: &mut Input, inputs: &mut [Input; N]) -> Result<Self> {
+    /// Get next input.
+    fn try_next(&mut self) -> Option<Input>;
+
+    /// Require next input.
+    fn next(&mut self, p: &mut Input) -> Result<Input> {
         let index = p.index;
 
-        let Some(value) = Self::try_collect_from_input(p, inputs)? else {
+        let Some(value) = Self::try_next(self) else {
             let pos = p.pos_of(index);
             return Err(InputError::new(p.path, pos, Self::error_kind()));
         };
 
         Ok(value)
     }
+}
+
+/// Parse something from a pair of inputs.
+pub trait FromInputIter: Sized {
+    /// Optionally try to confuse input ignoring leading whitespace by default.
+    fn from_input_iter<I>(p: &mut Input, inputs: &mut I) -> Result<Option<Self>>
+    where
+        I: InputIterator;
 }
 
 macro_rules! tuple {
@@ -451,21 +469,32 @@ macro_rules! tuple {
             }
         }
 
-        impl<$first, $($rest,)*> CollectFromInput<$num> for ($first, $($rest,)*)
+        impl<$first, $($rest,)*> FromInputIter for ($first, $($rest,)*)
         where
             $first: FromInput,
             $($rest: FromInput,)*
         {
             #[inline]
-            fn try_collect_from_input(_: &mut Input, inputs: &mut [Input; $num]) -> Result<Option<Self>> {
-                let [$first_id, $($rest_id,)*] = inputs;
-
-                let Some($first_id) = $first_id.try_next()? else {
+            fn from_input_iter<I>(_: &mut Input, inputs: &mut I) -> Result<Option<Self>>
+            where
+                I: InputIterator
+            {
+                let Some(mut $first_id) = inputs.try_next() else {
                     return Ok(None);
                 };
 
                 $(
-                    let Some($rest_id) = $rest_id.try_next()? else {
+                    let Some(mut $rest_id) = inputs.try_next() else {
+                        return Ok(None);
+                    };
+                )*
+
+                let Some($first_id) = <$first>::try_from_input(&mut $first_id)? else {
+                    return Ok(None);
+                };
+
+                $(
+                    let Some($rest_id) = <$rest>::try_from_input(&mut $rest_id)? else {
                         return Ok(None);
                     };
                 )*
@@ -662,42 +691,36 @@ where
 
 /// Split once on byte `D`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Split<const D: u8, const N: usize, T>(pub T);
+pub struct Split<const D: char, T>(pub T);
 
-impl<const D: u8, const N: usize, T> FromInput for Split<D, N, T>
+impl<const D: char, T> FromInput for Split<D, T>
 where
-    T: CollectFromInput<N>,
+    T: FromInputIter,
 {
     #[inline]
     fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
-        let index = p.index;
+        let mut it = p.splitn(D as u8);
 
-        let Some(mut inputs) = p.splitn::<N>(D) else {
-            p.index = index;
+        let Some(out) = T::from_input_iter(p, &mut it)? else {
             return Ok(None);
         };
 
-        let out = T::collect_from_input(p, &mut inputs)?;
-
-        if let Some(input) = inputs.last() {
-            p.index = input.index.min(p.range.end);
-        }
-
+        p.index = it.index();
         Ok(Some(Self(out)))
     }
 }
 
 /// Split and return a range.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Range<const D: u8, T>(pub ops::Range<T>);
+pub struct Range<const D: char, T>(pub ops::Range<T>);
 
-impl<const D: u8, T> FromInput for Range<D, T>
+impl<const D: char, T> FromInput for Range<D, T>
 where
     T: FromInput,
 {
     #[inline]
     fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
-        let Some(Split([a, b])) = Split::<D, 2, [T; 2]>::try_from_input(p)? else {
+        let Some(Split([a, b])) = Split::<D, [T; 2]>::try_from_input(p)? else {
             return Ok(None);
         };
 
@@ -705,16 +728,23 @@ where
     }
 }
 
-impl<const N: usize, T> CollectFromInput<N> for [T; N]
+impl<const N: usize, T> FromInputIter for [T; N]
 where
     T: FromInput,
 {
     #[inline]
-    fn try_collect_from_input(p: &mut Input, inputs: &mut [Input; N]) -> Result<Option<Self>> {
+    fn from_input_iter<I>(p: &mut Input, inputs: &mut I) -> Result<Option<Self>>
+    where
+        I: InputIterator,
+    {
         let mut vec = ArrayVec::new();
 
-        for input in inputs {
-            let Some(value) = T::try_from_input(input)? else {
+        while vec.remaining_capacity() > 0 {
+            let Some(mut value) = inputs.try_next() else {
+                return Ok(None);
+            };
+
+            let Some(value) = T::try_from_input(&mut value)? else {
                 return Ok(None);
             };
 
