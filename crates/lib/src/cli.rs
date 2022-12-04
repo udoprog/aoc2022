@@ -229,9 +229,10 @@ impl Bencher {
         let p95 = ((samples.len() as f32) * 0.95) as usize;
         let p99 = ((samples.len() as f32) * 0.99) as usize;
 
-        let p50 = samples.get(p50).or(samples.last());
-        let p95 = samples.get(p95).or(samples.last());
-        let p99 = samples.get(p99).or(samples.last());
+        let last = samples.last();
+        let p50 = samples.get(p50).or(last);
+        let p95 = samples.get(p95).or(last);
+        let p99 = samples.get(p99).or(last);
 
         let (Some(&p50), Some(&p95), Some(&p99), Some(count)) = (p50, p95, p99, (!samples.is_empty()).then_some(samples.len())) else {
             o.error("no samples :(")?;

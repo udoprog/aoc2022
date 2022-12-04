@@ -208,7 +208,7 @@ impl Input {
 
         let last = it.next_back();
 
-        while let Some(out) = it.next() {
+        for out in it {
             let (head, tail) = current.split_once(b)?;
             *out = head;
             current = tail;

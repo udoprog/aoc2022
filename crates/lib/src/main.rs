@@ -231,9 +231,6 @@ struct Message {
 
 impl Message {
     fn is_important(&self) -> bool {
-        match self.kind.as_str() {
-            "error" => true,
-            _ => false,
-        }
+        matches!(self.kind.as_str(), "error")
     }
 }
