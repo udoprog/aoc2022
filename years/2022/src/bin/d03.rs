@@ -5,7 +5,7 @@ fn main(mut input: Input) -> Result<(u32, u32)> {
     let mut part1 = 0;
     let mut part2 = 0;
 
-    while let Some(data) = input.try_line::<&[u8]>()? {
+    while let Some(W(data)) = input.try_line::<W<&[u8]>>()? {
         let (first, second) = data.split_at(data.len() / 2);
         part1 += (set(first) & set(second)).trailing_zeros();
     }
@@ -30,7 +30,7 @@ fn score(c: u8) -> u64 {
 struct S(u64);
 
 lib::from_input! {
-    |v: &'static [u8]| -> S { Ok(S(set(v))) }
+    |W(v): W<&'static [u8]>| -> S { Ok(S(set(v))) }
 }
 
 fn set(string: &[u8]) -> u64 {

@@ -305,6 +305,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ceab39d59e4c9499d4e5a8ee0e2735b891bb7308ac83dfb4e80cad195c9f6f3"
 
 [[package]]
+name = "y2021"
+version = "0.0.0"
+dependencies = [
+ "lib",
+]
+
+[[package]]
 name = "y2022"
 version = "0.0.0"
 dependencies = [
