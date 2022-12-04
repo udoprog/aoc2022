@@ -1,14 +1,11 @@
 use lib::prelude::*;
 
-type S = Split<'-', Span>;
-type O = Split<',', (S, S)>;
-
 #[entry(input = "d04.txt", expect = (582, 893))]
 fn main(mut input: Input) -> Result<(u32, u32)> {
     let mut part1 = 0;
     let mut part2 = 0;
 
-    while let Some(Split((Split(a), Split(b)))) = input.try_line::<O>()? {
+    while let Some(Split((a, b))) = input.try_line::<Split<',', (Span, Span)>>()? {
         if a.start >= b.start && a.end <= b.end || b.start >= a.start && b.end <= a.end {
             part1 += 1;
         }
@@ -26,8 +23,8 @@ struct Span {
     end: u32,
 }
 
-lib::from_input_iter! {
-    |(start, end): (u32, u32)| -> Span {
+lib::from_input! {
+    |Split((start, end)): Split<'-', (u32, u32)>| -> Span {
         Ok(Span { start, end })
     }
 }
