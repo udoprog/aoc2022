@@ -6,9 +6,9 @@ use std::fmt;
 use std::ops::Range;
 use std::str::from_utf8;
 
-use bstr::BStr;
-
 type Result<T> = std::result::Result<T, InputError>;
+
+const NL: u8 = b'\n';
 
 /// Various forms of input errors.
 #[derive(Debug)]
@@ -19,7 +19,8 @@ pub struct InputError {
 }
 
 impl InputError {
-    pub fn any(path: &'static str, pos: LineCol, error: anyhow::Error) -> Self {
+    /// Construct a new input error from anyhow.
+    pub fn anyhow(path: &'static str, pos: LineCol, error: anyhow::Error) -> Self {
         Self {
             path,
             pos,
@@ -59,6 +60,7 @@ enum ErrorKind {
     NotChar,
     NotLine,
     NotUtf8,
+    MissingSplit(u8),
     ArrayCapacity(usize),
     Boxed(anyhow::Error),
 }
@@ -71,6 +73,14 @@ impl fmt::Display for ErrorKind {
             ErrorKind::NotChar => write!(f, "not a character"),
             ErrorKind::NotLine => write!(f, "not a line"),
             ErrorKind::NotUtf8 => write!(f, "not utf-8"),
+            ErrorKind::MissingSplit(b) => {
+                if b.is_ascii_control() {
+                    write!(f, "missing split on byte {b:?}")
+                } else {
+                    let b = *b as char;
+                    write!(f, "missing split on byte {b:?}")
+                }
+            }
             ErrorKind::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
             ErrorKind::Boxed(error) => error.fmt(f),
         }
@@ -129,11 +139,16 @@ impl Input {
         self.index = self.range.start;
     }
 
-    /// Get remaining binary string of the input.
+    /// Get remaining bytes the input.
     pub fn as_bytes(&self) -> &'static [u8] {
         self.data
             .get(self.index..self.range.end)
             .unwrap_or_default()
+    }
+
+    /// Get remaining binary string of the input.
+    pub fn as_bstr(&self) -> &bstr::BStr {
+        bstr::BStr::new(self.as_bytes())
     }
 
     /// Get the current input path.
@@ -147,13 +162,39 @@ impl Input {
         self.pos_of(self.index)
     }
 
+    /// Split input on the given byte.
+    pub fn split(&mut self, b: u8) -> Option<(Input, Input)> {
+        let data = self.data.get(self.index..self.range.end)?;
+        let n = memchr::memchr(b, data)?;
+
+        let end = self.index.checked_add(n)?;
+
+        let a = Input {
+            path: self.path,
+            data: self.data,
+            range: self.index..end,
+            index: self.index,
+        };
+
+        let index = end.checked_add(1)?.min(self.range.end);
+
+        let b = Input {
+            path: self.path,
+            data: self.data,
+            range: index..self.range.end,
+            index,
+        };
+
+        Some((a, b))
+    }
+
     /// Get the current input position based on the given index.
     pub fn pos_of(&self, index: usize) -> LineCol {
         let Some(data) = self.data.get(..=index) else {
             return LineCol::EMPTY;
         };
 
-        let it = memchr::memchr_iter(b'\n', data);
+        let it = memchr::memchr_iter(NL, data);
         let (line, last) = it
             .enumerate()
             .last()
@@ -217,21 +258,22 @@ impl Input {
         let start = self.index;
         self.consume_whitespace();
         let data = self.data.get(start..self.index).unwrap_or_default();
-        memchr::memchr_iter(b'\n', data).count()
+        memchr::memchr_iter(NL, data).count()
     }
 
     /// Get the next line of input.
     #[inline]
-    fn next_line(&mut self) -> Option<Range<usize>> {
+    fn until(&mut self, b: u8) -> Option<Range<usize>> {
         let data = self.data.get(self.index..self.range.end)?;
 
-        let Some(at) = memchr::memchr(b'\n', data) else {
-            self.index = self.range.end;
-            return Some(self.index..self.index);
+        let Some(at) = memchr::memchr(b, data) else {
+            let start = std::mem::replace(&mut self.index, self.range.end);
+            return Some(start..self.range.end);
         };
 
         let end = self.index.saturating_add(at);
-        let start = std::mem::replace(&mut self.index, end.saturating_add(1));
+        let new_index = end.checked_add(1)?.min(self.range.end);
+        let start = std::mem::replace(&mut self.index, new_index);
         Some(start..end)
     }
 
@@ -367,6 +409,8 @@ integer!(i64, NotInteger);
 integer!(i128, NotInteger);
 integer!(f32, NotFloat);
 integer!(f64, NotFloat);
+integer!(num_bigint::BigInt, NotInteger);
+integer!(num_bigint::BigUint, NotInteger);
 
 impl FromInput for char {
     #[inline]
@@ -437,11 +481,11 @@ impl FromInput for &str {
     }
 }
 
-impl FromInput for &BStr {
+impl FromInput for &bstr::BStr {
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
         let data = <&[u8]>::from_input(p)?;
-        Ok(BStr::new(data))
+        Ok(bstr::BStr::new(data))
     }
 }
 
@@ -467,7 +511,7 @@ impl FromInput for Nl {
     fn from_input(p: &mut Input) -> Result<Self> {
         let pos = p.index;
 
-        let Some(range) = p.next_line() else {
+        let Some(range) = p.until(NL) else {
             let pos = p.pos_of(pos);
             return Err(InputError::new(p.path, pos, ErrorKind::NotLine));
         };
@@ -537,5 +581,30 @@ where
         }
 
         Ok(output)
+    }
+}
+
+/// Split once on byte `D`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Split<const D: u8, A, B>(pub A, pub B);
+
+impl<const D: u8, A, B> FromInput for Split<D, A, B>
+where
+    A: FromInput,
+    B: FromInput,
+{
+    #[inline]
+    fn from_input(p: &mut Input) -> Result<Self> {
+        let pos = p.index;
+
+        let Some((mut a_in, mut b_in)) = p.split(D) else {
+            let pos = p.pos_of(pos);
+            return Err(InputError::new(p.path, pos, ErrorKind::MissingSplit(D)));
+        };
+
+        let a = A::from_input(&mut a_in)?;
+        let b = B::from_input(&mut b_in)?;
+        p.index = b_in.index.min(p.range.end);
+        Ok(Self(a, b))
     }
 }

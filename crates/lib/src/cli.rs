@@ -304,8 +304,8 @@ impl fmt::Display for Report {
     }
 }
 
-impl AddAssign<Report> for Report {
-    fn add_assign(&mut self, rhs: Report) {
+impl AddAssign<&Report> for Report {
+    fn add_assign(&mut self, rhs: &Report) {
         self.p50 += rhs.p50;
         self.p95 += rhs.p95;
         self.p99 += rhs.p99;
