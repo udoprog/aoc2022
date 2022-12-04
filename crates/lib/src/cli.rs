@@ -9,10 +9,10 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
 /// Default warmup period in seconds.
-const DEFAULT_WARMUP: u64 = 5;
+const DEFAULT_WARMUP: u64 = 100;
 
 /// Default time in seconds.
-const DEFAULT_TIME: u64 = 5;
+const DEFAULT_TIME: u64 = 400;
 
 /// Run mode.
 #[derive(Default)]
@@ -146,8 +146,8 @@ impl Bencher {
         T: FnMut() -> Result<O>,
         O: fmt::Debug + PartialEq,
     {
-        let warmup = Duration::from_secs(opts.warmup.unwrap_or(DEFAULT_WARMUP));
-        let time = Duration::from_secs(opts.time.unwrap_or(DEFAULT_TIME));
+        let warmup = Duration::from_millis(opts.warmup.unwrap_or(DEFAULT_WARMUP));
+        let time = Duration::from_millis(opts.time.unwrap_or(DEFAULT_TIME));
 
         if !warmup.is_zero() {
             let start = Instant::now();
