@@ -13,7 +13,7 @@ fn main(mut input: Input) -> Result<(u32, u32)> {
             part1 += 1;
         }
 
-        if !(a.end < b.start) && !(b.end < a.start) {
+        if a.end >= b.start && b.end >= a.start {
             part2 += 1;
         }
     }
