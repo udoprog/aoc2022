@@ -30,7 +30,7 @@ fn score(c: u8) -> u64 {
 struct S(u64);
 
 lib::from_input! {
-    |v: &BStr| -> S { Ok(S(set(v))) }
+    |v: &'static [u8]| -> S { Ok(S(set(v))) }
 }
 
 fn set(string: &[u8]) -> u64 {

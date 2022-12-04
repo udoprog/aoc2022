@@ -8,7 +8,7 @@ pub mod macro_support {
 
 pub mod prelude {
     //! Helper prelude with useful imports.
-    pub use crate::input::{Input, Nl, Split, Ws, Range};
+    pub use crate::input::{Input, Nl, Range, Split, Ws};
     pub use anyhow::{anyhow, bail, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub use bstr::{BStr, ByteSlice};
@@ -23,15 +23,70 @@ macro_rules! from_input {
     (
         |$value:ident: $ty:ty| -> $out:ident $block:block
     ) => {
+        $crate::from_input!(|[$value]: $ty| -> $out $block);
+    };
+
+    (
+        |($($inner:ident),* $(,)?): $ty:ty| -> $out:ident $block:block
+    ) => {
+        $crate::from_input!(|[($($inner),*,)]: $ty| -> $out $block);
+    };
+
+    (
+        |[$($value:tt)*]: $ty:ty| -> $out:ident $block:block
+    ) => {
         impl $crate::input::FromInput for $out {
+            #[inline]
+            fn from_input_whitespace(
+                p: &mut $crate::input::Input,
+            ) -> core::result::Result<Self, $crate::input::InputError> {
+                let pos = p.index();
+                let value = <_ as $crate::input::FromInput>::from_input_whitespace(p)?;
+
+                match (|$($value)*: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
+                    $block
+                })(value)
+                {
+                    Ok(value) => Ok(value),
+                    Err(e) => Err($crate::input::InputError::anyhow(
+                        p.path(),
+                        p.pos_of(pos),
+                        e,
+                    )),
+                }
+            }
+
             #[inline]
             fn from_input(
                 p: &mut $crate::input::Input,
             ) -> core::result::Result<Self, $crate::input::InputError> {
                 let pos = p.index();
-                let value = <$ty as $crate::input::FromInput>::from_input(p)?;
+                let value = <_ as $crate::input::FromInput>::from_input(p)?;
 
-                match (|$value: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
+                match (|$($value)*: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
+                    $block
+                })(value)
+                {
+                    Ok(value) => Ok(value),
+                    Err(e) => Err($crate::input::InputError::anyhow(
+                        p.path(),
+                        p.pos_of(pos),
+                        e,
+                    )),
+                }
+            }
+        }
+
+        impl<const N: usize> $crate::input::CollectFromInputs<N> for $out where $ty: $crate::input::CollectFromInputs<N> {
+            #[inline]
+            fn collect_from_input(
+                p: &mut $crate::input::Input,
+                inputs: &mut [$crate::input::Input; N],
+            ) -> core::result::Result<Self, $crate::input::InputError> {
+                let pos = p.index();
+                let value = <$ty as $crate::input::CollectFromInputs<N>>::collect_from_input(p, inputs)?;
+
+                match (|$($value)*: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
                     $block
                 })(value)
                 {
