@@ -8,11 +8,13 @@ pub mod macro_support {
 
 pub mod prelude {
     //! Helper prelude with useful imports.
-    pub use crate::input::{Input, Nl, Ws};
+    pub use crate::input::{Input, Nl, Split, Ws};
     pub use anyhow::{anyhow, bail, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub use bstr::{BStr, ByteSlice};
     pub use macros::entry;
+    pub use num::{FromPrimitive, Integer, ToPrimitive};
+    pub use num_bigint::{BigInt as I, BigUint as U};
 }
 
 /// Helper macro to build an input processor.
@@ -34,7 +36,11 @@ macro_rules! from_input {
                 })(value)
                 {
                     Ok(value) => Ok(value),
-                    Err(e) => Err($crate::input::InputError::any(p.path(), p.pos_of(pos), e)),
+                    Err(e) => Err($crate::input::InputError::anyhow(
+                        p.path(),
+                        p.pos_of(pos),
+                        e,
+                    )),
                 }
             }
         }
