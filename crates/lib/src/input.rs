@@ -1,5 +1,7 @@
 //! Input parser.
 
+pub mod muck;
+
 use std::convert::Infallible;
 use std::error;
 use std::fmt;
@@ -9,7 +11,7 @@ use std::str::from_utf8;
 use arrayvec::ArrayVec;
 use bstr::BStr;
 
-type Result<T> = std::result::Result<T, InputError>;
+pub(self) type Result<T> = std::result::Result<T, InputError>;
 
 const NL: u8 = b'\n';
 
@@ -66,6 +68,7 @@ pub enum ErrorKind {
     ExpectedChar,
     ExpectedLine,
     ExpectedTuple(usize),
+    NotByteMuck,
     UnexpectedEof,
     ArrayCapacity(usize),
     Boxed(anyhow::Error),
@@ -82,6 +85,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::ExpectedLine => write!(f, "bad line"),
             ErrorKind::UnexpectedEof => write!(f, "unexpected eof"),
             ErrorKind::ExpectedTuple(n) => write!(f, "expected tuple of length `{n}`"),
+            ErrorKind::NotByteMuck => write!(f, "not a valid number muck"),
             ErrorKind::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
             ErrorKind::Boxed(error) => error.fmt(f),
         }
@@ -170,9 +174,9 @@ impl Input {
 
         let end = self.index.checked_add(n)?;
 
-        let a = self.at(self.index, self.index..end);
+        let a = self.slice(self.index..end);
         let index = end.checked_add(1)?.min(self.range.end);
-        let b = self.at(index, index..self.range.end);
+        let b = self.slice(index..self.range.end);
         Some((a, b))
     }
 
@@ -289,14 +293,6 @@ impl Input {
         Ok(n)
     }
 
-    /// Skip whitespace and return the number of lines skipped.
-    fn skip_whitespace(&mut self) -> usize {
-        let start = self.index;
-        self.consume_whitespace();
-        let data = self.data.get(start..self.index).unwrap_or_default();
-        memchr::memchr_iter(NL, data).count()
-    }
-
     /// Get the next line of input.
     #[inline]
     fn until(&mut self, b: u8) -> Option<ops::Range<usize>> {
@@ -313,31 +309,8 @@ impl Input {
         Some(start..end)
     }
 
-    /// Check how many whitespace characters there are ahead.
-    fn peek_whitespace(&mut self) -> usize {
-        let mut n = 0;
-
-        while let Some(c) = self.peek_from(n) {
-            if !c.is_ascii_whitespace() || !c.is_ascii_control() {
-                break;
-            }
-
-            n = n.checked_add(1).expect("cursor overflow");
-        }
-
-        n
-    }
-
-    /// Consume whitespace.
-    fn consume_whitespace(&mut self) {
-        let n = self.peek_whitespace();
-        self.advance(n);
-    }
-
     /// Get the byte at the given reader offset.
-    fn peek_from(&self, n: usize) -> Option<u8> {
-        let n = self.index.checked_add(n)?.min(self.range.end);
-
+    fn at(&self, n: usize) -> Option<u8> {
         if n >= self.range.end {
             return None;
         }
@@ -348,7 +321,7 @@ impl Input {
     /// Get the byte at the given reader offset.
     #[inline]
     fn peek(&self) -> Option<u8> {
-        self.peek_from(0)
+        self.at(self.index)
     }
 
     #[inline]
@@ -360,18 +333,13 @@ impl Input {
         self.index = self.index.saturating_add(n).min(self.range.end);
     }
 
-    /// Step the buffer.
-    fn step(&mut self) {
-        self.index = self.index.saturating_add(1).min(self.range.end);
-    }
-
     /// Construct a sub-range.
     #[inline]
-    fn at(&self, index: usize, range: ops::Range<usize>) -> Input {
+    fn slice(&self, range: ops::Range<usize>) -> Input {
         Self {
             path: self.path,
             data: self.data,
-            index,
+            index: range.start,
             range,
         }
     }
@@ -627,7 +595,7 @@ where
             return Err(InputError::new(p.path, pos, ErrorKind::ExpectedLine));
         };
 
-        let mut input = p.at(range.start, range);
+        let mut input = p.slice(range);
         Ok(Some(Self(input.next()?)))
     }
 }
@@ -638,7 +606,22 @@ pub struct Ws(pub usize);
 impl FromInput for Ws {
     #[inline]
     fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
-        Ok(Some(Self(p.skip_whitespace())))
+        let mut n = p.index;
+
+        while let Some(c) = p.at(n) {
+            if !c.is_ascii_whitespace() || !c.is_ascii_control() {
+                break;
+            }
+
+            n = n.saturating_add(1);
+        }
+
+        let Some(data) = p.data.get(p.index..n) else {
+            return Ok(Some(Self(0)));
+        };
+
+        p.index = n;
+        Ok(Some(Self(memchr::memchr_iter(NL, data).count())))
     }
 }
 
@@ -760,38 +743,37 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
-        let original = p.index;
+        let mut end = p.index;
 
-        while let Some(c) = p.peek() {
+        while let Some(c) = p.at(end) {
             if !(c.is_ascii_whitespace() || c.is_ascii_control()) {
                 break;
             }
 
-            p.step();
+            end = end.saturating_add(1);
         }
 
-        let index = p.index;
+        let start = end;
 
-        while let Some(c) = p.peek() {
+        while let Some(c) = p.at(end) {
             if c.is_ascii_whitespace() || c.is_ascii_control() {
                 break;
             }
 
-            p.step();
+            end = end.saturating_add(1);
         }
 
-        if index == p.index {
-            p.index = original;
+        if start == end {
             return Ok(None);
         }
 
-        let mut input = p.at(index, index..p.index);
+        let mut input = p.slice(start..end);
 
         let Some(value) = T::try_from_input(&mut input)? else {
-            p.index = original;
             return Ok(None);
         };
 
+        p.index = end;
         Ok(Some(Self(value)))
     }
 }
