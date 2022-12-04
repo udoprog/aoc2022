@@ -170,22 +170,9 @@ impl Input {
 
         let end = self.index.checked_add(n)?;
 
-        let a = Input {
-            path: self.path,
-            data: self.data,
-            range: self.index..end,
-            index: self.index,
-        };
-
+        let a = self.at(self.index, self.index..end);
         let index = end.checked_add(1)?.min(self.range.end);
-
-        let b = Input {
-            path: self.path,
-            data: self.data,
-            range: index..self.range.end,
-            index,
-        };
-
+        let b = self.at(index, index..self.range.end);
         Some((a, b))
     }
 
@@ -376,6 +363,17 @@ impl Input {
     /// Step the buffer.
     fn step(&mut self) {
         self.index = self.index.saturating_add(1).min(self.range.end);
+    }
+
+    /// Construct a sub-range.
+    #[inline]
+    fn at(&self, index: usize, range: ops::Range<usize>) -> Input {
+        Self {
+            path: self.path,
+            data: self.data,
+            index,
+            range,
+        }
     }
 }
 
@@ -629,13 +627,7 @@ where
             return Err(InputError::new(p.path, pos, ErrorKind::ExpectedLine));
         };
 
-        let mut input = Input {
-            path: p.path,
-            data: p.data,
-            index: range.start,
-            range,
-        };
-
+        let mut input = p.at(range.start, range);
         Ok(Some(Self(input.next()?)))
     }
 }
@@ -793,12 +785,7 @@ where
             return Ok(None);
         }
 
-        let mut input = Input {
-            path: p.path,
-            data: p.data,
-            index,
-            range: index..p.index,
-        };
+        let mut input = p.at(index, index..p.index);
 
         let Some(value) = T::try_from_input(&mut input)? else {
             p.index = original;
