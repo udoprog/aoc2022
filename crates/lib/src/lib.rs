@@ -14,8 +14,9 @@ pub mod prelude {
     pub use anyhow::{anyhow, bail, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub use bstr::{BStr, ByteSlice};
+    pub use log::*;
     pub use macros::entry;
-    pub use num::{FromPrimitive, Integer, ToPrimitive};
+    pub use num::*;
     pub use num_bigint::{BigInt as I, BigUint as U};
 }
 
