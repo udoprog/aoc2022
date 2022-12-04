@@ -16,7 +16,7 @@ fn main(mut input: Input) -> Result<(i32, i32)> {
 struct Move(i32);
 
 lib::from_input! {
-    |v: &'static str| -> Move {
+    |W(v): W<&'static str>| -> Move {
         Ok(Move(match v {
             "X" | "A" => 0,
             "Y" | "B" => 1,

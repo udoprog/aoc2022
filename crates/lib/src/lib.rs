@@ -8,7 +8,7 @@ pub mod macro_support {
 
 pub mod prelude {
     //! Helper prelude with useful imports.
-    pub use crate::input::{Input, Nl, Range, Split, Ws};
+    pub use crate::input::{Input, Nl, Range, Split, Ws, W};
     pub use anyhow::{anyhow, bail, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub use bstr::{BStr, ByteSlice};
@@ -27,9 +27,9 @@ macro_rules! from_input {
     };
 
     (
-        |($($inner:ident),* $(,)?): $ty:ty| -> $out:ident $block:block
+        |$($t:ident)?($($inner:ident),* $(,)?): $ty:ty| -> $out:ident $block:block
     ) => {
-        $crate::from_input!(|[($($inner),*,)]: $ty| -> $out $block);
+        $crate::from_input!(|[$($t)*($($inner),*,)]: $ty| -> $out $block);
     };
 
     (
@@ -37,63 +37,49 @@ macro_rules! from_input {
     ) => {
         impl $crate::input::FromInput for $out {
             #[inline]
-            fn from_input_whitespace(
+            fn try_from_input(
                 p: &mut $crate::input::Input,
-            ) -> core::result::Result<Self, $crate::input::InputError> {
-                let pos = p.index();
-                let value = <_ as $crate::input::FromInput>::from_input_whitespace(p)?;
+            ) -> core::result::Result<Option<Self>, $crate::input::InputError> {
+                let index = p.index();
+
+                let Some(value) = $crate::input::FromInput::try_from_input(p)? else {
+                    return Ok(None);
+                };
 
                 match (|$($value)*: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
                     $block
                 })(value)
                 {
-                    Ok(value) => Ok(value),
+                    Ok(value) => Ok(Some(value)),
                     Err(e) => Err($crate::input::InputError::anyhow(
                         p.path(),
-                        p.pos_of(pos),
-                        e,
-                    )),
-                }
-            }
-
-            #[inline]
-            fn from_input(
-                p: &mut $crate::input::Input,
-            ) -> core::result::Result<Self, $crate::input::InputError> {
-                let pos = p.index();
-                let value = <_ as $crate::input::FromInput>::from_input(p)?;
-
-                match (|$($value)*: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
-                    $block
-                })(value)
-                {
-                    Ok(value) => Ok(value),
-                    Err(e) => Err($crate::input::InputError::anyhow(
-                        p.path(),
-                        p.pos_of(pos),
+                        p.pos_of(index),
                         e,
                     )),
                 }
             }
         }
 
-        impl<const N: usize> $crate::input::CollectFromInputs<N> for $out where $ty: $crate::input::CollectFromInputs<N> {
+        impl<const N: usize> $crate::input::CollectFromInput<N> for $out where $ty: $crate::input::CollectFromInput<N> {
             #[inline]
-            fn collect_from_input(
+            fn try_collect_from_input(
                 p: &mut $crate::input::Input,
                 inputs: &mut [$crate::input::Input; N],
-            ) -> core::result::Result<Self, $crate::input::InputError> {
-                let pos = p.index();
-                let value = <$ty as $crate::input::CollectFromInputs<N>>::collect_from_input(p, inputs)?;
+            ) -> core::result::Result<Option<Self>, $crate::input::InputError> {
+                let index = p.index();
+
+                let Some(value) = <$ty as $crate::input::CollectFromInput<N>>::try_collect_from_input(p, inputs)? else {
+                    return Ok(None);
+                };
 
                 match (|$($value)*: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
                     $block
                 })(value)
                 {
-                    Ok(value) => Ok(value),
+                    Ok(value) => Ok(Some(value)),
                     Err(e) => Err($crate::input::InputError::anyhow(
                         p.path(),
-                        p.pos_of(pos),
+                        p.pos_of(index),
                         e,
                     )),
                 }
