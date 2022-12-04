@@ -1,11 +1,13 @@
 //! CLI helpers.
 
+mod stdout_logger;
+
 use std::fmt;
 use std::io::{self, Write};
 use std::ops::AddAssign;
 use std::time::{Duration, Instant};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
 /// Default warmup period in seconds.
@@ -13,6 +15,8 @@ const DEFAULT_WARMUP: u64 = 100;
 
 /// Default time in seconds.
 const DEFAULT_TIME: u64 = 400;
+
+static STDOUT_LOGGER: stdout_logger::StdoutLogger = stdout_logger::StdoutLogger;
 
 /// Run mode.
 #[derive(Default)]
@@ -93,6 +97,15 @@ impl Opts {
                 other => {
                     bail!("unsupported argument: {other}");
                 }
+            }
+        }
+
+        match &opts.mode {
+            Mode::Default => {
+                log::set_max_level(log::LevelFilter::Info);
+                log::set_logger(&STDOUT_LOGGER).map_err(|error| anyhow!("failed to set log: {error}"))?;
+            }
+            _ => {
             }
         }
 

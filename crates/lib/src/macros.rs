@@ -1,16 +1,8 @@
 /// Helper macro to build an input processor.
 #[macro_export]
 macro_rules! from_input {
-    (|$value:ident: $ty:ty| -> $($rest:tt)*) => {
-        $crate::from_input!(|[$value]: $ty| -> $($rest)*);
-    };
-
-    (|$t:ident($pat:pat): $ty:ty| -> $($rest:tt)*) => {
-        $crate::from_input!(|[$t($pat)]: $ty| -> $($rest)*);
-    };
-
-    (|($($tt:tt)*): $ty:ty| -> $($rest:tt)*) => {
-        $crate::from_input!(|[($($tt)*)]: $ty| -> $($rest)*);
+    (|$($value:ident)? $(($pat:pat))?: $ty:ty| -> $($rest:tt)*) => {
+        $crate::from_input!(|[$($value)? $(($pat))?]: $ty| -> $($rest)*);
     };
 
     (|[$($value:tt)*]: $ty:ty| -> $out:ident $block:block) => {
