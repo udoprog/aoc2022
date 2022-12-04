@@ -3,7 +3,7 @@
 use std::convert::Infallible;
 use std::error;
 use std::fmt;
-use std::ops::Range;
+use std::ops;
 use std::str::from_utf8;
 
 type Result<T> = std::result::Result<T, InputError>;
@@ -114,7 +114,7 @@ pub struct Input {
     /// Index into the current slice.
     index: usize,
     /// Index being read.
-    range: Range<usize>,
+    range: ops::Range<usize>,
 }
 
 impl Input {
@@ -263,7 +263,7 @@ impl Input {
 
     /// Get the next line of input.
     #[inline]
-    fn until(&mut self, b: u8) -> Option<Range<usize>> {
+    fn until(&mut self, b: u8) -> Option<ops::Range<usize>> {
         let data = self.data.get(self.index..self.range.end)?;
 
         let Some(at) = memchr::memchr(b, data) else {
@@ -606,5 +606,20 @@ where
         let b = B::from_input(&mut b_in)?;
         p.index = b_in.index.min(p.range.end);
         Ok(Self(a, b))
+    }
+}
+
+/// Split and return a range.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Range<const D: u8, T>(pub ops::Range<T>);
+
+impl<const D: u8, T> FromInput for Range<D, T>
+where
+    T: FromInput,
+{
+    #[inline]
+    fn from_input(p: &mut Input) -> Result<Self> {
+        let Split(a, b) = Split::<D, T, T>::from_input(p)?;
+        Ok(Self(a..b))
     }
 }
