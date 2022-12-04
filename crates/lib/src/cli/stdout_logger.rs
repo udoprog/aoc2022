@@ -8,7 +8,13 @@ impl Log for StdoutLogger {
     }
 
     fn log(&self, record: &log::Record) {
-        println!("{file}:{line}: {}: {}", record.level(), record.args(), file = record.file().unwrap_or_default(), line = record.line().unwrap_or_default());
+        println!(
+            "{file}:{line}: {}: {}",
+            record.level(),
+            record.args(),
+            file = record.file().unwrap_or_default(),
+            line = record.line().unwrap_or_default()
+        );
     }
 
     fn flush(&self) {}
