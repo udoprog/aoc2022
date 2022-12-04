@@ -9,11 +9,11 @@ fn main(mut input: Input) -> Result<(u32, u32)> {
 
     while let Some(title) = input.try_line::<&str>()? {
         println!("{title}");
-        let Split(first) = input.line::<Split<b',', 3, Coord>>()?;
+        let first = input.line::<Coord>()?;
 
-        while let Some(Split(c)) = input.try_line::<Split<b',', 3, Coord>>()? {
-            let _c = c - first;
-            // println!("{},{},{}", c.x, c.y, c.z);
+        while let Some(c) = input.try_line::<Coord>()? {
+            let c = c - first;
+            println!("{},{},{}", c.x, c.y, c.z);
         }
 
         input.ws()?;
@@ -43,5 +43,5 @@ impl Sub for Coord {
 }
 
 lib::from_input! {
-    |(x, y, z): (i32, i32, i32)| -> Coord { Ok(Coord { x, y, z }) }
+    |Split((x, y, z)): Split<',', (i32, i32, i32)>| -> Coord { Ok(Coord { x, y, z }) }
 }
