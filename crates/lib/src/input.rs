@@ -6,6 +6,8 @@ use std::fmt;
 use std::ops;
 use std::str::from_utf8;
 
+use arrayvec::ArrayVec;
+
 type Result<T> = std::result::Result<T, InputError>;
 
 const NL: u8 = b'\n';
@@ -61,6 +63,7 @@ enum ErrorKind {
     NotLine,
     NotUtf8,
     MissingSplit(u8),
+    BadArray,
     ArrayCapacity(usize),
     Boxed(anyhow::Error),
 }
@@ -81,6 +84,7 @@ impl fmt::Display for ErrorKind {
                     write!(f, "missing split on byte {b:?}")
                 }
             }
+            ErrorKind::BadArray => write!(f, "bad array"),
             ErrorKind::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
             ErrorKind::Boxed(error) => error.fmt(f),
         }
@@ -118,6 +122,13 @@ pub struct Input {
 }
 
 impl Input {
+    const EMPTY: Input = Input {
+        path: "",
+        data: &[],
+        index: 0,
+        range: 0..0,
+    };
+
     /// Construct a new input processor.
     #[doc(hidden)]
     pub fn new(path: &'static str, data: &'static [u8]) -> Self {
@@ -163,7 +174,7 @@ impl Input {
     }
 
     /// Split input on the given byte.
-    pub fn split(&mut self, b: u8) -> Option<(Input, Input)> {
+    pub fn split_once(&mut self, b: u8) -> Option<(Input, Input)> {
         let data = self.data.get(self.index..self.range.end)?;
         let n = memchr::memchr(b, data)?;
 
@@ -186,6 +197,28 @@ impl Input {
         };
 
         Some((a, b))
+    }
+
+    /// Split `N` times.
+    pub fn splitn<const N: usize>(&mut self, b: u8) -> Option<[Input; N]> {
+        let mut output = [Input::EMPTY; N];
+
+        let mut current = self.clone();
+        let mut it = output.iter_mut();
+
+        let last = it.next_back();
+
+        while let Some(out) = it.next() {
+            let (head, tail) = current.split_once(b)?;
+            *out = head;
+            current = tail;
+        }
+
+        if let Some(out) = last {
+            *out = current;
+        }
+
+        Some(output)
     }
 
     /// Get the current input position based on the given index.
@@ -356,8 +389,46 @@ pub trait FromInput: Sized {
     fn from_input(p: &mut Input) -> Result<Self>;
 }
 
+/// Parse something from a pair of inputs.
+pub trait CollectFromInputs<const N: usize>: Sized {
+    /// Optionally try to confuse input ignoring leading whitespace by default.
+    #[inline]
+    fn try_collect_from_input(p: &mut Input, inputs: &mut [Input; N]) -> Result<Option<Self>> {
+        let mut advances = [0; N];
+
+        for (input, o) in inputs.iter_mut().zip(&mut advances) {
+            let n = input.peek_whitespace();
+
+            if input.peek_from(n).is_none() {
+                return Ok(None);
+            }
+
+            *o = n;
+        }
+
+        for (input, o) in inputs.iter_mut().zip(advances) {
+            input.advance(o);
+        }
+
+        Ok(Some(Self::collect_from_input(p, inputs)?))
+    }
+
+    /// From input before whitespace stripping.
+    #[inline]
+    fn collect_from_input_whitespace(p: &mut Input, inputs: &mut [Input; N]) -> Result<Self> {
+        for input in inputs.iter_mut() {
+            input.consume_whitespace();
+        }
+
+        Self::collect_from_input(p, inputs)
+    }
+
+    /// Collect from the given inputs.
+    fn collect_from_input(p: &mut Input, inputs: &mut [Input; N]) -> Result<Self>;
+}
+
 macro_rules! tuple {
-    ($first:ident $first_id:ident $(, $rest:ident $rest_id:ident)* $(,)?) => {
+    ($num:literal => $first:ident $first_id:ident $(, $rest:ident $rest_id:ident)* $(,)?) => {
         impl<$first, $($rest,)*> FromInput for ($first, $($rest, )*)
         where
             $first: FromInput,
@@ -365,8 +436,22 @@ macro_rules! tuple {
         {
             #[inline]
             fn from_input(p: &mut Input) -> Result<Self> {
-                let $first_id = p.next::<$first>()?;
-                $(let $rest_id = p.next::<$rest>()?;)*
+                let $first_id = p.next()?;
+                $(let $rest_id = p.next()?;)*
+                Ok(($first_id, $($rest_id,)*))
+            }
+        }
+
+        impl<$first, $($rest,)*> CollectFromInputs<$num> for ($first, $($rest,)*)
+        where
+            $first: FromInput,
+            $($rest: FromInput,)*
+        {
+            #[inline]
+            fn collect_from_input(_: &mut Input, inputs: &mut [Input; $num]) -> Result<Self> {
+                let [$first_id, $($rest_id,)*] = inputs;
+                let $first_id = $first_id.next()?;
+                $(let $rest_id = $rest_id.next()?;)*
                 Ok(($first_id, $($rest_id,)*))
             }
         }
@@ -392,10 +477,10 @@ macro_rules! integer {
     };
 }
 
-tuple!(A a);
-tuple!(A a, B b);
-tuple!(A a, B b, C c);
-tuple!(A a, B b, C c, D d);
+tuple!(1 => A a);
+tuple!(2 => A a, B b);
+tuple!(3 => A a, B b, C c);
+tuple!(4 => A a, B b, C c, D d);
 
 integer!(u8, NotInteger);
 integer!(u16, NotInteger);
@@ -586,26 +671,28 @@ where
 
 /// Split once on byte `D`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Split<const D: u8, A, B>(pub A, pub B);
+pub struct Split<const D: u8, const N: usize, T>(pub T);
 
-impl<const D: u8, A, B> FromInput for Split<D, A, B>
+impl<const D: u8, const N: usize, T> FromInput for Split<D, N, T>
 where
-    A: FromInput,
-    B: FromInput,
+    T: CollectFromInputs<N>,
 {
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
         let pos = p.index;
 
-        let Some((mut a_in, mut b_in)) = p.split(D) else {
+        let Some(mut inputs) = p.splitn::<N>(D) else {
             let pos = p.pos_of(pos);
             return Err(InputError::new(p.path, pos, ErrorKind::MissingSplit(D)));
         };
 
-        let a = A::from_input(&mut a_in)?;
-        let b = B::from_input(&mut b_in)?;
-        p.index = b_in.index.min(p.range.end);
-        Ok(Self(a, b))
+        let out = T::collect_from_input(p, &mut inputs)?;
+
+        if let Some(input) = inputs.last() {
+            p.index = input.index.min(p.range.end);
+        }
+
+        Ok(Self(out))
     }
 }
 
@@ -619,7 +706,27 @@ where
 {
     #[inline]
     fn from_input(p: &mut Input) -> Result<Self> {
-        let Split(a, b) = Split::<D, T, T>::from_input(p)?;
+        let Split([a, b]) = Split::<D, 2, [T; 2]>::from_input(p)?;
         Ok(Self(a..b))
+    }
+}
+
+impl<const N: usize, T> CollectFromInputs<N> for [T; N]
+where
+    T: FromInput,
+{
+    #[inline]
+    fn collect_from_input(p: &mut Input, inputs: &mut [Input; N]) -> Result<Self> {
+        let mut vec = ArrayVec::new();
+
+        for input in inputs {
+            vec.push(T::from_input(input)?);
+        }
+
+        let Ok(value) = vec.into_inner() else {
+            return Err(InputError::new(p.path, p.pos(), ErrorKind::BadArray));
+        };
+
+        Ok(value)
     }
 }
