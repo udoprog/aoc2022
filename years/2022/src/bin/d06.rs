@@ -7,7 +7,9 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut part1 = 0;
     let mut part2 = 0;
 
-    while let Some(..) = input.try_line::<IStr>()? {}
+    while let Some(mut data) = input.try_line::<ArrayVec<char, 16>>()? {
+        data.try_push('t').context("push")?;
+    }
 
     Ok((part1, part2))
 }

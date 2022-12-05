@@ -1,5 +1,7 @@
+use core::fmt;
 use core::ops::Range;
-use std::{fs::File, io::Read};
+use std::fs::File;
+use std::io::Read;
 
 use anyhow::{anyhow, Context};
 
@@ -7,7 +9,7 @@ use crate::cli::error::LineCol;
 use crate::input::IStr;
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Size(usize);
 
 impl Size {
@@ -37,6 +39,13 @@ impl Size {
     #[inline]
     pub(crate) fn saturating_add(self, n: Size) -> Self {
         Self(self.0.saturating_add(n.0))
+    }
+}
+
+impl fmt::Debug for Size {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 

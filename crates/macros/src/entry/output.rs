@@ -182,8 +182,7 @@ impl IntoTokens for CollectCall<'_> {
 
         let handle_error = from_fn(|s| {
             let error = (
-                m,
-                ("cli", S, "CliError", S, "cli"),
+                (m, "cli", S, "error_context"),
                 parens(("path", ',', "input", ',', "error")),
             );
             s.write(("return", "Err"));
