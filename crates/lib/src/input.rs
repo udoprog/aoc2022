@@ -19,7 +19,8 @@ use crate::env::Size;
 pub(crate) const NL: u8 = b'\n';
 
 /// Helper to parse input.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(prod, repr(transparent))]
 pub struct IStr {
     /// The path being parsed.
     data: &'static [u8],
@@ -234,6 +235,12 @@ impl IStr {
             data: self.data.get(range)?,
             index,
         })
+    }
+}
+
+impl IStr {
+    pub fn test(&mut self) {
+        println!("yes?");
     }
 }
 

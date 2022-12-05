@@ -62,18 +62,12 @@ impl ItemOutput {
         let (input_decl, input_arg) = match &config.input_file {
             Some(input) => {
                 let decl = (
-                    ("let", parens(("mut", "input", ',', "path"))),
+                    ("let", parens(("input", ',', "path"))),
                     '=',
                     (m, "input", '!', parens(input.clone())),
                     ';',
                 );
-                let start = (
-                    ("let", "original", '=', "input"),
-                    '.',
-                    ("as_data", parens(())),
-                    ';',
-                );
-                (Some((decl, start)), Input::Input)
+                (Some(decl), Input::Input)
             }
             None => (None, Input::Todo),
         };
@@ -169,7 +163,7 @@ impl IntoTokens for Input {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {
         match self {
             Input::Input => {
-                stream.write(span, ('&', "mut", "input"));
+                stream.write(span, "input");
             }
             Input::Todo => {
                 stream.write(span, "todo");
@@ -190,7 +184,7 @@ impl IntoTokens for CollectCall<'_> {
             let error = (
                 m,
                 ("cli", S, "CliError", S, "cli"),
-                parens(("path", ',', "original", ',', "error")),
+                parens(("path", ',', "input", ',', "error")),
             );
             s.write(("return", "Err"));
             s.write(parens((error, '.', "into", parens(()))));

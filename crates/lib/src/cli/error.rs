@@ -3,7 +3,7 @@ use core::fmt;
 use std::ops::Range;
 
 use crate::env::Size;
-use crate::input::IStrError;
+use crate::input::{IStr, IStrError};
 
 #[derive(Debug)]
 enum ErrorKind {
@@ -62,12 +62,12 @@ pub struct CliError {
 impl CliError {
     /// Constructor used in macros.
     #[doc(hidden)]
-    pub fn cli<E>(path: &'static str, data: &'static [u8], error: E) -> Self
+    pub fn cli<E>(path: &'static str, data: IStr, error: E) -> Self
     where
         anyhow::Error: From<E>,
     {
         let (kind, span) = find_cause(error.into());
-        let pos = crate::env::pos_from(data, span);
+        let pos = crate::env::pos_from(data.as_data(), span);
 
         Self {
             path,
