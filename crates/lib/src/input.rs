@@ -498,7 +498,11 @@ tuple!(1 => A a);
 tuple!(2 => A a, B b);
 tuple!(3 => A a, B b, C c);
 tuple!(4 => A a, B b, C c, D d);
+tuple!(5 => A a, B b, C c, D d, E e);
+tuple!(6 => A a, B b, C c, D d, E e, F f);
 
+integer!(usize, NotInteger);
+integer!(isize, NotInteger);
 integer!(u8, NotInteger);
 integer!(u16, NotInteger);
 integer!(u32, NotInteger);
@@ -734,8 +738,18 @@ where
     }
 }
 
+#[non_exhaustive]
+pub struct Skip;
+
+impl FromInput for Skip {
+    #[inline]
+    fn try_from_input(_: &mut Input) -> Result<Option<Self>> {
+        Ok(Some(Self))
+    }
+}
+
 /// Parse a word of input, which parses until we reach a whitespace or control character.
-pub struct W<T>(pub T);
+pub struct W<T = Skip>(pub T);
 
 impl<T> FromInput for W<T>
 where

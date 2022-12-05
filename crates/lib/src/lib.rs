@@ -13,6 +13,7 @@ pub mod prelude {
     pub use crate::input::{Input, Nl, Range, Split, Ws, W};
     pub use anyhow::{anyhow, bail, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
+    pub type ArrayString<const N: usize = 16> = arrayvec::ArrayString<N>;
     pub use bstr::{BStr, ByteSlice};
     pub use log::*;
     pub use macros::entry;
