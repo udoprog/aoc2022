@@ -30,13 +30,8 @@ fn main(input: &mut IStr) -> Result<(ArrayString, ArrayString)> {
         let (_, c, _, from, _, to) = line?;
         let from = from.checked_sub(1).context("underflow")?;
         let to = to.checked_sub(1).context("underflow")?;
-
-        for _ in 0..c {
-            do_move(&mut stacks1, from, to).context("bad move 1")?;
-            do_move(&mut stacks2, from, to).context("bad move 2")?;
-        }
-
-        do_reverse(&mut stacks2, to, c).context("bad reverse")?;
+        do_move(&mut stacks1, from, to, c).context("bad move 1")?;
+        do_move2(&mut stacks2, from, to, c).context("bad move 2")?;
     }
 
     let mut part1 = ArrayString::new();
@@ -55,15 +50,26 @@ fn main(input: &mut IStr) -> Result<(ArrayString, ArrayString)> {
     Ok((part1, part2))
 }
 
-fn do_move<const N: usize, T>(stacks: &mut [ArrayVec<T, N>], from: usize, to: usize) -> Option<()> {
-    let d = stacks.get_mut(from)?.pop()?;
-    stacks.get_mut(to)?.try_push(d).ok()?;
+fn do_move<const N: usize, T>(
+    stacks: &mut [ArrayVec<T, N>],
+    from: usize,
+    to: usize,
+    c: usize,
+) -> Option<()> {
+    let (from, to) = stacks.get_mut2(from, to)?;
+    let s = from.len().checked_sub(c)?;
+    to.extend(from.drain(s..).rev());
     Some(())
 }
 
-fn do_reverse<const N: usize, T>(stacks: &mut [ArrayVec<T, N>], i: usize, c: usize) -> Option<()> {
-    let stack = stacks.get_mut(i)?;
-    let s = stack.len().checked_sub(c)?;
-    stack.get_mut(s..)?.reverse();
+fn do_move2<const N: usize, T>(
+    stacks: &mut [ArrayVec<T, N>],
+    from: usize,
+    to: usize,
+    c: usize,
+) -> Option<()> {
+    let (from, to) = stacks.get_mut2(from, to)?;
+    let s = from.len().checked_sub(c)?;
+    to.extend(from.drain(s..));
     Some(())
 }

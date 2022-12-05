@@ -2,6 +2,7 @@ pub mod cli;
 pub mod input;
 #[macro_use]
 mod macros;
+mod ext;
 
 #[doc(hidden)]
 pub mod macro_support {
@@ -14,6 +15,7 @@ pub mod prelude {
     pub use anyhow::{anyhow, bail, ensure, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub type ArrayString<const N: usize = 16> = arrayvec::ArrayString<N>;
+    pub use crate::ext::SliceExt;
     pub use bstr::{BStr, ByteSlice};
     pub use log::*;
     pub use macros::entry;
