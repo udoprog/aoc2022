@@ -67,9 +67,10 @@ impl ItemOutput {
                     (m, "input", '!', parens(input.clone())),
                     ';',
                 );
-                (Some(decl), Input::Input)
+                let start = ("let", "input_start", '=', "input", ';');
+                (Some((decl, start)), IStr::IStr)
             }
-            None => (None, Input::Todo),
+            None => (None, IStr::Todo),
         };
 
         let parse_opts = (
@@ -154,18 +155,18 @@ impl IntoTokens for Mod {
 }
 
 #[derive(Clone, Copy)]
-enum Input {
-    Input,
+enum IStr {
+    IStr,
     Todo,
 }
 
-impl IntoTokens for Input {
+impl IntoTokens for IStr {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {
         match self {
-            Input::Input => {
+            IStr::IStr => {
                 stream.write(span, ('&', "mut", "input"));
             }
-            Input::Todo => {
+            IStr::Todo => {
                 stream.write(span, "todo");
                 stream.write(span, '!');
                 stream.write(span, parens(()));
@@ -174,14 +175,14 @@ impl IntoTokens for Input {
     }
 }
 
-struct CollectCall<'a>(TokenTree, Input, Mod, Compare<'a>);
+struct CollectCall<'a>(TokenTree, IStr, Mod, Compare<'a>);
 
 impl IntoTokens for CollectCall<'_> {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {
         let CollectCall(name, input, m, compare) = self;
 
         let handle_error = from_fn(|s| {
-            let pos = ("input", '.', "pos", parens(()));
+            let pos = ("input", '.', "pos_from", parens(('&', "input_start")));
             let error = (
                 m,
                 "cli",
@@ -210,7 +211,7 @@ impl IntoTokens for CollectCall<'_> {
     }
 }
 
-struct BenchCall(TokenTree, Input);
+struct BenchCall(TokenTree, IStr);
 
 impl IntoTokens for BenchCall {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {

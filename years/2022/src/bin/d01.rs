@@ -1,7 +1,7 @@
 use lib::prelude::*;
 
 #[entry(input = "d01.txt", expect = (70764, 203905))]
-fn main(input: &mut Input) -> Result<(u32, u32)> {
+fn main(input: &mut IStr) -> Result<(u32, u32)> {
     let mut output = [0; 4];
     let mut calories = 0u32;
 

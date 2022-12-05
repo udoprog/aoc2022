@@ -9,9 +9,9 @@ macro_rules! from_input {
         impl $crate::input::FromInput for $out {
             #[inline]
             fn try_from_input(
-                p: &mut $crate::input::Input,
-            ) -> core::result::Result<Option<Self>, $crate::input::InputError> {
-                let index = p.index();
+                p: &mut $crate::input::IStr,
+            ) -> core::result::Result<Option<Self>, $crate::input::IStrError> {
+                let original = *p;
 
                 let Some(value) = $crate::input::FromInput::try_from_input(p)? else {
                     return Ok(None);
@@ -23,8 +23,8 @@ macro_rules! from_input {
                 {
                     Ok(value) => Ok(Some(value)),
                     Err(e) => {
-                        p.set_index(index);
-                        Err($crate::input::InputError::Boxed(e))
+                        *p = original;
+                        Err($crate::input::IStrError::Boxed(e))
                     }
                 }
             }
