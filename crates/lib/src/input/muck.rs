@@ -1,4 +1,4 @@
-use crate::input::{ErrorKind, FromInput, Input, InputError, Result};
+use crate::input::{FromInput, Input, InputError, Result};
 
 /// A byte-mucked number.
 pub struct Muck2(pub u8);
@@ -9,8 +9,7 @@ impl FromInput for Muck2 {
         let a = p.at(p.index);
 
         if !matches!(a, Some(b'0'..=b'9')) {
-            let pos = p.pos();
-            return Err(InputError::new(p.path, pos, ErrorKind::NotByteMuck));
+            return Err(InputError::NotByteMuck);
         }
 
         let b = p.index.checked_add(1).and_then(|d| p.at(d));
@@ -21,8 +20,7 @@ impl FromInput for Muck2 {
         };
 
         if matches!(c, Some(b'0'..=b'9')) {
-            let pos = p.pos();
-            return Err(InputError::new(p.path, pos, ErrorKind::NotByteMuck));
+            return Err(InputError::NotByteMuck);
         }
 
         let mut muck = a - b'0';

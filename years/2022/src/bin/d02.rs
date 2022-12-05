@@ -1,7 +1,7 @@
 use lib::prelude::*;
 
 #[entry(input = "d02.txt", expect = (13682, 12881))]
-fn main(mut input: Input) -> Result<(i32, i32)> {
+fn main(input: &mut Input) -> Result<(i32, i32)> {
     let mut part1 = 0;
     let mut part2 = 0;
 

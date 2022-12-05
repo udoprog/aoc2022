@@ -3,7 +3,7 @@ use std::ops::Sub;
 use lib::prelude::*;
 
 #[entry(input = "d19.txt", expect = (0, 0))]
-fn main(mut input: Input) -> Result<(u32, u32)> {
+fn main(input: &mut Input) -> Result<(u32, u32)> {
     let part1 = 0;
     let part2 = 0;
 

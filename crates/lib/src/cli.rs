@@ -1,5 +1,6 @@
 //! CLI helpers.
 
+mod error;
 mod output_eq;
 mod stdout_logger;
 
@@ -11,6 +12,7 @@ use std::time::{Duration, Instant};
 use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
+pub use self::error::CliError;
 pub use self::output_eq::OutputEq;
 
 /// Default warmup period in seconds.

@@ -67,7 +67,7 @@ impl ItemOutput {
         let (input_decl, input_arg) = match &config.input_file {
             Some(input) => {
                 let decl = (
-                    ("let", "input"),
+                    ("let", parens(("mut", "input", ',', "path"))),
                     '=',
                     (m, "input", '!', parens(input.clone())),
                     ';',
@@ -96,7 +96,7 @@ impl ItemOutput {
         let call_mode = (
             (mode, S, "Default"),
             T,
-            braced(CollectCall(fn_name.clone(), input_arg, compare)),
+            braced(CollectCall(fn_name.clone(), input_arg, m, compare)),
         );
 
         let bench_mode = (
@@ -169,7 +169,7 @@ impl IntoTokens for Input {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {
         match self {
             Input::Input => {
-                stream.write(span, "input");
+                stream.write(span, ('&', "mut", "input"));
             }
             Input::Todo => {
                 stream.write(span, "todo");
@@ -180,15 +180,33 @@ impl IntoTokens for Input {
     }
 }
 
-struct CollectCall<'a>(TokenTree, Input, Compare<'a>);
+struct CollectCall<'a>(TokenTree, Input, Mod, Compare<'a>);
 
 impl IntoTokens for CollectCall<'_> {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {
-        let CollectCall(name, input, compare) = self;
+        let CollectCall(name, input, m, compare) = self;
+
+        let handle_error = from_fn(|s| {
+            let pos = ("input", '.', "pos", parens(()));
+            let error = (m, "cli", S, "CliError", S, "new", parens(("path", ',', pos, ',', "error")));
+            s.write(("return", "Err"));
+            s.write(parens((error, '.', "into", parens(()))));
+        });
+
+        let handle_error = from_fn(move |s| {
+            s.write("match");
+            s.write((name, parens(input)));
+            s.write(braced(from_fn(move |s| {
+                s.write(("Ok", parens("value"), T, "value", ','));
+                s.write(("Err", parens("error"), T, handle_error, ','));
+            })));
+        });
+
         stream.write(
             span,
-            ("let", compare.binding(), '=', name, parens(input), '?', ';'),
+            ("let", compare.binding(), '=', handle_error, ';'),
         );
+
         stream.write(span, compare);
     }
 }

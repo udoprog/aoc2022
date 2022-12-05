@@ -2,7 +2,7 @@ use lib::input::muck::Muck2;
 use lib::prelude::*;
 
 #[entry(input = "d04.txt", expect = (582, 893))]
-fn main(mut input: Input) -> Result<(u32, u32)> {
+fn main(input: &mut Input) -> Result<(u32, u32)> {
     let mut part1 = 0;
     let mut part2 = 0;
 

@@ -3,8 +3,6 @@
 mod iter;
 pub mod muck;
 
-use std::convert::Infallible;
-use std::error;
 use std::fmt;
 use std::ops;
 use std::str::from_utf8;
@@ -18,52 +16,9 @@ pub(self) type Result<T> = std::result::Result<T, InputError>;
 
 const NL: u8 = b'\n';
 
-/// Various forms of input errors.
-#[derive(Debug)]
-pub struct InputError {
-    path: &'static str,
-    pos: LineCol,
-    kind: ErrorKind,
-}
-
-impl InputError {
-    /// Construct a new input error from anyhow.
-    pub fn anyhow(path: &'static str, pos: LineCol, error: anyhow::Error) -> Self {
-        Self {
-            path,
-            pos,
-            kind: ErrorKind::Boxed(error),
-        }
-    }
-
-    fn new(path: &'static str, pos: LineCol, kind: ErrorKind) -> Self {
-        Self { path, pos, kind }
-    }
-}
-
-impl fmt::Display for InputError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{path}:{pos}: {kind}",
-            path = self.path,
-            pos = self.pos,
-            kind = self.kind
-        )
-    }
-}
-
-impl error::Error for InputError {}
-
-impl From<Infallible> for InputError {
-    fn from(_: Infallible) -> Self {
-        unreachable!()
-    }
-}
-
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum ErrorKind {
+pub enum InputError {
     NotInteger(&'static str),
     NotFloat(&'static str),
     NotUtf8,
@@ -77,21 +32,31 @@ pub enum ErrorKind {
     Boxed(anyhow::Error),
 }
 
-impl fmt::Display for ErrorKind {
+impl fmt::Display for InputError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorKind::NotInteger(n) => write!(f, "not an integer or integer overflow `{n}`"),
-            ErrorKind::NotFloat(n) => write!(f, "not a float `{n}`"),
-            ErrorKind::NotUtf8 => write!(f, "not utf-8"),
-            ErrorKind::BadArray => write!(f, "bad array"),
-            ErrorKind::ExpectedChar => write!(f, "exptected charater"),
-            ErrorKind::ExpectedLine => write!(f, "bad line"),
-            ErrorKind::UnexpectedEof => write!(f, "unexpected eof"),
-            ErrorKind::ExpectedTuple(n) => write!(f, "expected tuple of length `{n}`"),
-            ErrorKind::NotByteMuck => write!(f, "not a valid number muck"),
-            ErrorKind::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
-            ErrorKind::Boxed(error) => error.fmt(f),
+            InputError::NotInteger(n) => write!(f, "not an integer or integer overflow `{n}`"),
+            InputError::NotFloat(n) => write!(f, "not a float `{n}`"),
+            InputError::NotUtf8 => write!(f, "not utf-8"),
+            InputError::BadArray => write!(f, "bad array"),
+            InputError::ExpectedChar => write!(f, "exptected charater"),
+            InputError::ExpectedLine => write!(f, "bad line"),
+            InputError::UnexpectedEof => write!(f, "unexpected eof"),
+            InputError::ExpectedTuple(n) => write!(f, "expected tuple of length `{n}`"),
+            InputError::NotByteMuck => write!(f, "not a valid number muck"),
+            InputError::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
+            InputError::Boxed(error) => error.fmt(f),
         }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for InputError {
+}
+
+impl From<anyhow::Error> for InputError {
+    fn from(error: anyhow::Error) -> Self {
+        InputError::Boxed(error)
     }
 }
 
@@ -115,8 +80,6 @@ impl fmt::Display for LineCol {
 /// Helper to parse input.
 #[derive(Debug, Clone)]
 pub struct Input {
-    /// Path being parsed.
-    path: &'static str,
     /// The path being parsed.
     data: &'static [u8],
     /// Index into the current slice.
@@ -128,9 +91,8 @@ pub struct Input {
 impl Input {
     /// Construct a new input processor.
     #[doc(hidden)]
-    pub fn new(path: &'static str, data: &'static [u8]) -> Self {
+    pub fn new(data: &'static [u8]) -> Self {
         Self {
-            path,
             data,
             index: 0,
             range: 0..data.len(),
@@ -159,6 +121,11 @@ impl Input {
         self.index
     }
 
+    /// Index to set to.
+    pub fn set_index(&mut self, index: usize) {
+        self.index = index;
+    }
+
     /// Reset input.
     pub fn reset(&mut self) {
         self.index = self.range.start;
@@ -174,11 +141,6 @@ impl Input {
     /// Get remaining binary string of the input.
     pub fn as_bstr(&self) -> &BStr {
         BStr::new(self.as_bytes())
-    }
-
-    /// Get the current input path.
-    pub fn path(&self) -> &'static str {
-        self.path
     }
 
     /// Get the current line column position.
@@ -357,7 +319,6 @@ impl Input {
     #[inline]
     fn slice(&self, range: ops::Range<usize>) -> Input {
         Self {
-            path: self.path,
             data: self.data,
             index: range.start,
             range,
@@ -369,8 +330,8 @@ impl Input {
 pub trait FromInput: Sized {
     /// Custom error kind to use.
     #[inline]
-    fn error_kind() -> ErrorKind {
-        ErrorKind::UnexpectedEof
+    fn error_kind() -> InputError {
+        InputError::UnexpectedEof
     }
 
     /// Optionally try to confuse input ignoring leading whitespace by default.
@@ -381,8 +342,8 @@ pub trait FromInput: Sized {
         let start = p.index;
 
         let Some(value) = Self::try_from_input(p)? else {
-            let pos = p.pos_of(start);
-            return Err(InputError::new(p.path, pos, Self::error_kind()));
+            p.index = start;
+            return Err(Self::error_kind());
         };
 
         Ok(value)
@@ -392,8 +353,8 @@ pub trait FromInput: Sized {
 /// Iterator over inputs.
 pub trait InputIterator {
     #[inline]
-    fn error_kind() -> ErrorKind {
-        ErrorKind::UnexpectedEof
+    fn error_kind() -> InputError {
+        InputError::UnexpectedEof
     }
 
     /// Get tail index of iterator.
@@ -407,8 +368,8 @@ pub trait InputIterator {
         let index = p.index;
 
         let Some(value) = Self::try_next(self) else {
-            let pos = p.pos_of(index);
-            return Err(InputError::new(p.path, pos, Self::error_kind()));
+            p.index = index;
+            return Err(Self::error_kind());
         };
 
         Ok(value)
@@ -431,8 +392,8 @@ macro_rules! tuple {
             $($rest: FromInput,)*
         {
             #[inline]
-            fn error_kind() -> ErrorKind {
-                ErrorKind::ExpectedTuple($num)
+            fn error_kind() -> InputError {
+                InputError::ExpectedTuple($num)
             }
 
             #[inline]
@@ -504,8 +465,8 @@ macro_rules! integer {
                 };
 
                 let Ok(n) = str::parse(string) else {
-                    let pos = p.pos_of(index);
-                    return Err(InputError::new(p.path, pos, ErrorKind::$error(string)));
+                    p.index = index;
+                    return Err(InputError::$error(string));
                 };
 
                 Ok(Some(n))
@@ -540,8 +501,8 @@ integer!(num_bigint::BigUint, NotInteger);
 
 impl FromInput for char {
     #[inline]
-    fn error_kind() -> ErrorKind {
-        ErrorKind::ExpectedChar
+    fn error_kind() -> InputError {
+        InputError::ExpectedChar
     }
 
     #[inline]
@@ -581,7 +542,7 @@ impl FromInput for &str {
         };
 
         let Ok(data) = from_utf8(data) else {
-            return Err(InputError::new(p.path, p.pos(), ErrorKind::NotUtf8));
+            return Err(InputError::NotUtf8);
         };
 
         Ok(Some(data))
@@ -612,11 +573,11 @@ where
             return Ok(None);
         }
 
-        let pos = p.index;
+        let index = p.index;
 
         let Some(range) = p.until(NL) else {
-            let pos = p.pos_of(pos);
-            return Err(InputError::new(p.path, pos, ErrorKind::ExpectedLine));
+            p.index = index;
+            return Err(InputError::ExpectedLine);
         };
 
         let mut input = p.slice(range);
@@ -656,16 +617,16 @@ where
     #[inline]
     fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
         let mut output = arrayvec::ArrayVec::new();
-        let mut pos = p.index;
+        let mut index = p.index;
 
         while let Some(element) = T::try_from_input(p)? {
             if output.remaining_capacity() == 0 {
-                let pos = p.pos_of(pos);
-                return Err(InputError::new(p.path, pos, ErrorKind::ArrayCapacity(N)));
+                p.index = index;
+                return Err(InputError::ArrayCapacity(N));
             }
 
             output.push(element);
-            pos = p.index;
+            index = p.index;
         }
 
         Ok(Some(output))
@@ -736,6 +697,7 @@ where
     where
         I: InputIterator,
     {
+        let index = p.index;
         let mut vec = ArrayVec::new();
 
         while vec.remaining_capacity() > 0 {
@@ -751,7 +713,8 @@ where
         }
 
         let Ok(value) = vec.into_inner() else {
-            return Err(InputError::new(p.path, p.pos(), ErrorKind::BadArray));
+            p.index = index;
+            return Err(InputError::BadArray);
         };
 
         Ok(Some(value))
