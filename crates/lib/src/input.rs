@@ -53,20 +53,20 @@ impl fmt::Display for ErrorKind {
 /// Error raised through string processing.
 #[derive(Debug)]
 pub struct IStrError {
-    pub(crate) index: usize,
+    pub(crate) span: ops::Range<usize>,
     pub(crate) kind: ErrorKind,
 }
 
 impl IStrError {
     /// Construct a new input error.
-    pub fn new(index: usize, kind: ErrorKind) -> Self {
-        Self { index, kind }
+    pub fn new(span: ops::Range<usize>, kind: ErrorKind) -> Self {
+        Self { span, kind }
     }
 }
 
 impl fmt::Display for IStrError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} (at #{})", self.kind, self.index)
+        write!(f, "{} (at {:?})", self.kind, self.span)
     }
 }
 
@@ -75,7 +75,7 @@ impl std::error::Error for IStrError {}
 
 impl From<anyhow::Error> for IStrError {
     fn from(error: anyhow::Error) -> Self {
-        IStrError::new(0, ErrorKind::Boxed(error))
+        IStrError::new(0..0, ErrorKind::Boxed(error))
     }
 }
 
@@ -141,6 +141,11 @@ impl IStr {
 
         impl<'a> InputIterator for Iterator<'a> {
             #[inline]
+            fn index(&self) -> usize {
+                self.input.index
+            }
+
+            #[inline]
             fn next(&mut self) -> Option<IStr> {
                 self.input.split_once(self.byte)
             }
@@ -177,7 +182,7 @@ impl IStr {
         let index = self.index;
 
         let Some(line) = self.try_line()? else {
-            return Err(IStrError::new(index, ErrorKind::ExpectedLine));
+            return Err(IStrError::new(index..self.index, ErrorKind::ExpectedLine));
         };
 
         Ok(line)
@@ -308,7 +313,7 @@ pub trait FromInput: Sized {
         let index = p.index;
 
         let Some(value) = Self::try_from_input(p)? else {
-            return Err(IStrError::new(index, Self::error_kind()));
+            return Err(IStrError::new(index..p.index, Self::error_kind()));
         };
 
         Ok(value)
@@ -317,6 +322,9 @@ pub trait FromInput: Sized {
 
 /// Iterator over inputs.
 pub trait InputIterator {
+    /// Current index of the input iterator.
+    fn index(&self) -> usize;
+
     /// Get next input.
     fn next(&mut self) -> Option<IStr>;
 }
@@ -406,7 +414,7 @@ macro_rules! integer {
                 };
 
                 let Ok(n) = str::parse(string) else {
-                    return Err(IStrError::new(index.saturating_add(n), ErrorKind::$error(string)));
+                    return Err(IStrError::new(index.saturating_add(n)..p.index, ErrorKind::$error(string)));
                 };
 
                 Ok(Some(n))
@@ -482,7 +490,7 @@ impl FromInput for &str {
         };
 
         let Ok(data) = from_utf8(data) else {
-            return Err(IStrError::new(index, ErrorKind::NotUtf8));
+            return Err(IStrError::new(index..p.index, ErrorKind::NotUtf8));
         };
 
         Ok(Some(data))
@@ -548,11 +556,12 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
+        let index = p.index;
         let mut output = arrayvec::ArrayVec::new();
 
         while let Some(element) = T::try_from_input(p)? {
             if output.remaining_capacity() == 0 {
-                return Err(IStrError::new(p.index, ErrorKind::ArrayCapacity(N)));
+                return Err(IStrError::new(index..p.index, ErrorKind::ArrayCapacity(N)));
             }
 
             output.push(element);
@@ -641,7 +650,7 @@ where
         }
 
         let Ok(value) = vec.into_inner() else {
-            return Err(IStrError::new(index, ErrorKind::BadArray));
+            return Err(IStrError::new(index..inputs.index(), ErrorKind::BadArray));
         };
 
         Ok(Some(value))

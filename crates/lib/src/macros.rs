@@ -25,7 +25,7 @@ macro_rules! from_input {
                     Err(e) => {
                         match e.downcast() {
                             Ok(error) => Err(error),
-                            Err(e) => Err($crate::input::IStrError::new(index, $crate::input::ErrorKind::Boxed(e)))
+                            Err(e) => Err($crate::input::IStrError::new(index..p.index(), $crate::input::ErrorKind::Boxed(e)))
                         }
                     }
                 }
