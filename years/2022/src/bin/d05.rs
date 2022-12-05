@@ -26,10 +26,23 @@ fn main(input: &mut IStr) -> Result<(ArrayString, ArrayString)> {
 
     let mut stacks2 = stacks1.clone();
 
+    let do_move = |st: &mut [ArrayVec<_, 128>], f, t, c| {
+        let (from, to) = st.get_mut2(f, t)?;
+        to.extend(from.drain(from.len().checked_sub(c)?..).rev());
+        Some(())
+    };
+
+    let do_move2 = |st: &mut [ArrayVec<_, 128>], f, t, c| {
+        let (from, to) = st.get_mut2(f, t)?;
+        to.extend(from.drain(from.len().checked_sub(c)?..));
+        Some(())
+    };
+
     for line in input.iter::<(W, usize, W, usize, W, usize)>() {
         let (_, c, _, from, _, to) = line?;
         let from = from.checked_sub(1).context("underflow")?;
         let to = to.checked_sub(1).context("underflow")?;
+
         do_move(&mut stacks1, from, to, c).context("bad move 1")?;
         do_move2(&mut stacks2, from, to, c).context("bad move 2")?;
     }
@@ -48,28 +61,4 @@ fn main(input: &mut IStr) -> Result<(ArrayString, ArrayString)> {
     }
 
     Ok((part1, part2))
-}
-
-fn do_move<const N: usize, T>(
-    stacks: &mut [ArrayVec<T, N>],
-    from: usize,
-    to: usize,
-    c: usize,
-) -> Option<()> {
-    let (from, to) = stacks.get_mut2(from, to)?;
-    let s = from.len().checked_sub(c)?;
-    to.extend(from.drain(s..).rev());
-    Some(())
-}
-
-fn do_move2<const N: usize, T>(
-    stacks: &mut [ArrayVec<T, N>],
-    from: usize,
-    to: usize,
-    c: usize,
-) -> Option<()> {
-    let (from, to) = stacks.get_mut2(from, to)?;
-    let s = from.len().checked_sub(c)?;
-    to.extend(from.drain(s..));
-    Some(())
 }
