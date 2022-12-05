@@ -220,6 +220,10 @@ impl IStr {
     /// Split once at the given byte or until the end of string, returning the new IStr associated with the split.
     #[inline]
     fn split_once(&mut self, b: u8) -> Option<IStr> {
+        if self.data.is_empty() {
+            return None;
+        }
+
         let Some(at) = memchr::memchr(b, self.data) else {
             let data = mem::take(&mut self.data);
             return Some(IStr::new(data));
