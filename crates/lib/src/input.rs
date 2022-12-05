@@ -83,19 +83,13 @@ pub struct Input {
     data: &'static [u8],
     /// Index into the current slice.
     index: usize,
-    /// Index being read.
-    range: ops::Range<usize>,
 }
 
 impl Input {
     /// Construct a new input processor.
     #[doc(hidden)]
     pub fn new(data: &'static [u8]) -> Self {
-        Self {
-            data,
-            index: 0,
-            range: 0..data.len(),
-        }
+        Self { data, index: 0 }
     }
 
     /// Cosntruct an iterator over the current input.
@@ -105,14 +99,12 @@ impl Input {
 
     /// Test if input is empty.
     pub fn is_empty(&self) -> bool {
-        debug_assert!(self.range.end >= self.index);
-        self.index == self.range.end
+        self.index == self.data.len()
     }
 
     /// Get the length of the current input.
     pub fn len(&self) -> usize {
-        debug_assert!(self.range.end >= self.index);
-        self.range.end.saturating_sub(self.index)
+        self.data.len() - self.index
     }
 
     /// Get current index.
@@ -127,14 +119,12 @@ impl Input {
 
     /// Reset input.
     pub fn reset(&mut self) {
-        self.index = self.range.start;
+        self.index = 0;
     }
 
     /// Get remaining bytes the input.
     pub fn as_bytes(&self) -> &'static [u8] {
-        self.data
-            .get(self.index..self.range.end)
-            .unwrap_or_default()
+        self.data.get(self.index..).unwrap_or_default()
     }
 
     /// Get remaining binary string of the input.
@@ -148,51 +138,27 @@ impl Input {
         self.pos_of(self.index)
     }
 
-    /// Split input on the given byte.
-    pub fn split_once(&self, b: u8) -> Option<(Input, Input)> {
-        let data = self.data.get(self.index..self.range.end)?;
-        let n = memchr::memchr(b, data)?;
-
-        let end = self.index.checked_add(n)?;
-
-        let a = self.slice(self.index..end);
-        let index = end.checked_add(1)?.min(self.range.end);
-        let b = self.slice(index..self.range.end);
-        Some((a, b))
-    }
-
     /// Split `N` times.
     pub fn splitn(&self, byte: u8) -> impl InputIterator {
         return Iterator {
+            input: self.clone(),
             byte,
-            last: self.index,
-            current: Some(self.clone()),
         };
 
         struct Iterator {
+            input: Input,
             byte: u8,
-            last: usize,
-            current: Option<Input>,
         }
 
         impl InputIterator for Iterator {
-            /// End index for the last item iterated over.
+            #[inline]
             fn index(&self) -> usize {
-                self.last
+                self.input.index
             }
 
             #[inline]
             fn try_next(&mut self) -> Option<Input> {
-                let current = self.current.take()?;
-
-                let Some((input, next)) = current.split_once(self.byte) else {
-                    self.last = current.range.end;
-                    return Some(current);
-                };
-
-                self.last = next.range.end;
-                self.current = Some(next);
-                Some(input)
+                self.input.split_once(self.byte)
             }
         }
     }
@@ -274,28 +240,24 @@ impl Input {
         Ok(n)
     }
 
-    /// Get the next line of input.
+    /// Split once at the given byte or until the end of string, returning the new Input associated with the split.
     #[inline]
-    fn until(&mut self, b: u8) -> Option<ops::Range<usize>> {
-        let data = self.data.get(self.index..self.range.end)?;
+    fn split_once(&mut self, b: u8) -> Option<Input> {
+        let data = self.data.get(self.index..)?;
 
         let Some(at) = memchr::memchr(b, data) else {
-            let start = std::mem::replace(&mut self.index, self.range.end);
-            return Some(start..self.range.end);
+            self.index = self.data.len();
+            return Some(Input::new(data));
         };
 
+        let data = data.get(..at)?;
         let end = self.index.saturating_add(at);
-        let new_index = end.checked_add(1)?.min(self.range.end);
-        let start = std::mem::replace(&mut self.index, new_index);
-        Some(start..end)
+        self.index = end.checked_add(1)?;
+        Some(Input::new(data))
     }
 
     /// Get the byte at the given reader offset.
     fn at(&self, n: usize) -> Option<u8> {
-        if n >= self.range.end {
-            return None;
-        }
-
         self.data.get(n).copied()
     }
 
@@ -311,17 +273,16 @@ impl Input {
             return;
         }
 
-        self.index = self.index.saturating_add(n).min(self.range.end);
+        self.index = self.index.saturating_add(n).min(self.data.len());
     }
 
     /// Construct a sub-range.
     #[inline]
-    fn slice(&self, range: ops::Range<usize>) -> Input {
-        Self {
-            data: self.data,
-            index: range.start,
-            range,
-        }
+    fn slice(&self, range: ops::Range<usize>) -> Option<Input> {
+        Some(Self {
+            data: self.data.get(range)?,
+            index: 0,
+        })
     }
 }
 
@@ -527,8 +488,11 @@ impl FromInput for Input {
 impl FromInput for &[u8] {
     #[inline]
     fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
-        let data = p.data.get(p.index..p.range.end).unwrap_or_default();
-        p.index = p.range.end;
+        let Some(data) = p.data.get(p.index..) else {
+            return Ok(None);
+        };
+
+        p.index = p.data.len();
         Ok(Some(data))
     }
 }
@@ -574,12 +538,11 @@ where
 
         let index = p.index;
 
-        let Some(range) = p.until(NL) else {
+        let Some(mut input) = p.split_once(NL) else {
             p.index = index;
             return Err(InputError::ExpectedLine);
         };
 
-        let mut input = p.slice(range);
         Ok(Some(Self(input.next()?)))
     }
 }
@@ -763,7 +726,9 @@ where
             return Ok(None);
         }
 
-        let mut input = p.slice(start..end);
+        let Some(mut input) = p.slice(start..end) else {
+            return Ok(None);
+        };
 
         let Some(value) = T::try_from_input(&mut input)? else {
             return Ok(None);
