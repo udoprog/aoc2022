@@ -16,18 +16,42 @@ pub mod env;
 #[doc(hidden)]
 pub mod env;
 
-#[doc(hidden)]
-pub mod macro_support {
-    pub use anyhow::Error;
+#[macro_export]
+macro_rules! bail {
+    ($expr:expr) => {
+        Err($crate::input::ErrorKind::from($expr))?
+    };
+}
+
+#[macro_export]
+macro_rules! ensure {
+    ($condition:expr) => {
+        if !$condition {
+            Err($crate::input::ErrorKind::Condition(
+                stringify!($condition),
+                None,
+            ))?
+        }
+    };
+
+    ($condition:expr, $custom:expr) => {
+        if !$condition {
+            Err($crate::input::ErrorKind::Condition(
+                stringify!($condition),
+                Some($crate::input::Custom::from($custom)),
+            ))?
+        }
+    };
 }
 
 pub mod prelude {
     //! Helper prelude with useful imports.
     pub use crate::input::{IStr, Nl, NonEmpty, Range, Split, Ws, W};
-    pub use anyhow::{anyhow, bail, ensure, Context, Result};
+    pub use anyhow::{anyhow, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub type ArrayString<const N: usize = 16> = arrayvec::ArrayString<N>;
     pub use crate::ext::SliceExt;
+    pub use crate::{bail, ensure};
     pub use bstr::{BStr, ByteSlice};
     pub use log::*;
     pub use macros::entry;

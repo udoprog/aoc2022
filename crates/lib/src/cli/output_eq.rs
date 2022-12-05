@@ -56,3 +56,5 @@ partial_eq!(i16);
 partial_eq!(i32);
 partial_eq!(i64);
 partial_eq!(i128);
+partial_eq!(bool);
+partial_eq!(());

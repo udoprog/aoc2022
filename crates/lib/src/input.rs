@@ -1,8 +1,8 @@
 //! Input parser.
 
+mod error;
 mod iter;
 
-use core::fmt;
 use core::mem;
 use core::ops;
 use std::str::from_utf8;
@@ -10,78 +10,13 @@ use std::str::from_utf8;
 use arrayvec::ArrayVec;
 use bstr::BStr;
 
+pub use self::error::{Custom, ErrorKind, IStrError};
 pub use self::iter::Iter;
 
 pub(self) type Result<T> = std::result::Result<T, IStrError>;
 use crate::env::Size;
 
 pub(crate) const NL: u8 = b'\n';
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum ErrorKind {
-    NotInteger(&'static str),
-    NotFloat(&'static str),
-    NotUtf8,
-    BadArray,
-    ExpectedChar,
-    ExpectedLine,
-    ExpectedTuple(usize),
-    NotByteMuck,
-    UnexpectedEof,
-    ArrayCapacity(usize),
-    Boxed(anyhow::Error),
-}
-
-impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ErrorKind::NotInteger(n) => write!(f, "not an integer or integer overflow `{n}`"),
-            ErrorKind::NotFloat(n) => write!(f, "not a float `{n}`"),
-            ErrorKind::NotUtf8 => write!(f, "not utf-8"),
-            ErrorKind::BadArray => write!(f, "bad array"),
-            ErrorKind::ExpectedChar => write!(f, "exptected charater"),
-            ErrorKind::ExpectedLine => write!(f, "bad line"),
-            ErrorKind::UnexpectedEof => write!(f, "unexpected eof"),
-            ErrorKind::ExpectedTuple(n) => write!(f, "expected tuple of length `{n}`"),
-            ErrorKind::NotByteMuck => write!(f, "not a valid number muck"),
-            ErrorKind::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
-            ErrorKind::Boxed(error) => error.fmt(f),
-        }
-    }
-}
-
-/// Error raised through string processing.
-#[derive(Debug)]
-pub struct IStrError {
-    pub(crate) span: ops::Range<Size>,
-    pub(crate) kind: ErrorKind,
-}
-
-impl IStrError {
-    /// Construct a new input error.
-    #[inline]
-    pub fn new(span: ops::Range<Size>, kind: ErrorKind) -> Self {
-        Self { span, kind }
-    }
-}
-
-impl fmt::Display for IStrError {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} (at {:?})", self.kind, self.span)
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for IStrError {}
-
-impl From<anyhow::Error> for IStrError {
-    #[inline]
-    fn from(error: anyhow::Error) -> Self {
-        IStrError::new(Size::ZERO..Size::ZERO, ErrorKind::Boxed(error))
-    }
-}
 
 /// Helper to parse input.
 #[derive(Debug, Clone)]
