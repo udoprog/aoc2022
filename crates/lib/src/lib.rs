@@ -10,7 +10,7 @@ pub mod macro_support {
 
 pub mod prelude {
     //! Helper prelude with useful imports.
-    pub use crate::input::{Input, Nl, NonEmpty, Range, Split, Ws, W};
+    pub use crate::input::{IStr, Nl, NonEmpty, Range, Split, Ws, W};
     pub use anyhow::{anyhow, bail, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub type ArrayString<const N: usize = 16> = arrayvec::ArrayString<N>;
@@ -26,7 +26,7 @@ pub fn input(
     path: &'static str,
     read_path: &str,
     storage: &'static mut Vec<u8>,
-) -> Result<self::input::Input, crate::cli::CliError> {
+) -> Result<self::input::IStr, crate::cli::CliError> {
     use std::fs::File;
     use std::io::Read;
 
@@ -34,16 +34,16 @@ pub fn input(
         crate::cli::CliError::new(
             path,
             Default::default(),
-            crate::input::InputError::Boxed(error),
+            crate::input::IStrError::Boxed(error),
         )
     });
 
-    fn inner(read_path: &str, storage: &'static mut Vec<u8>) -> anyhow::Result<self::input::Input> {
+    fn inner(read_path: &str, storage: &'static mut Vec<u8>) -> anyhow::Result<self::input::IStr> {
         let mut file = File::open(read_path)?;
         let mut buf = Vec::with_capacity(4096);
         file.read_to_end(&mut buf)?;
         *storage = buf;
-        Ok(self::input::Input::new(storage))
+        Ok(self::input::IStr::new(storage))
     }
 }
 

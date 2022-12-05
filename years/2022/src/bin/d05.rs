@@ -1,10 +1,10 @@
 use lib::prelude::*;
 
 #[entry(input = "d05.txt", expect = ("RFFFWBPNS", "CQQBBJFCS"))]
-fn main(input: &mut Input) -> Result<(ArrayString, ArrayString)> {
+fn main(input: &mut IStr) -> Result<(ArrayString, ArrayString)> {
     let mut stacks1 = ArrayVec::<ArrayVec<_, 128>, 10>::new();
 
-    while let Some(line) = input.try_line::<Input>()?.filter(|s| !s.is_empty()) {
+    while let Some(line) = input.try_line::<IStr>()?.filter(|s| !s.is_empty()) {
         for (n, chunk) in line.as_bstr().chunks(4).enumerate() {
             if let Some(&d) = chunk.get(1).filter(|d| matches!(d, b'A'..=b'Z')) {
                 for _ in stacks1.len()..=n {

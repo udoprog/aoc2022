@@ -1,14 +1,14 @@
 use core::convert::Infallible;
 use core::fmt;
 
-use crate::input::{InputError, LineCol};
+use crate::input::{IStrError, LineCol};
 
 /// Various forms of input errors.
 #[derive(Debug)]
 pub struct CliError {
     path: &'static str,
     pos: LineCol,
-    kind: InputError,
+    kind: IStrError,
 }
 
 impl CliError {
@@ -17,11 +17,11 @@ impl CliError {
         Self {
             path,
             pos,
-            kind: InputError::Boxed(error),
+            kind: IStrError::Boxed(error),
         }
     }
 
-    pub fn new(path: &'static str, pos: LineCol, kind: impl Into<InputError>) -> Self {
+    pub fn new(path: &'static str, pos: LineCol, kind: impl Into<IStrError>) -> Self {
         Self {
             path,
             pos,
