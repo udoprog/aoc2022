@@ -14,7 +14,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
 pub use self::bencher::Bencher;
-pub use self::error::CliError;
+pub use self::error::error_context;
 pub(self) use self::output::{Output, OutputKind};
 pub use self::output_eq::OutputEq;
 

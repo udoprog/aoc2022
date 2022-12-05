@@ -1,9 +1,10 @@
+use core::fmt;
 use core::ops::Range;
 
 use crate::cli::error::LineCol;
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Size;
 
 impl Size {
@@ -29,6 +30,11 @@ impl Size {
     pub(crate) fn advance(&mut self, _: usize) -> Self {
         Self
     }
+}
+
+impl fmt::Debug for Size {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {}
 }
 
 pub fn pos_from(_: &[u8], _: Range<Size>) -> LineCol {

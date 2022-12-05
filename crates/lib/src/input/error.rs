@@ -80,7 +80,7 @@ pub enum ErrorKind {
     NotInteger(&'static str),
     NotFloat(&'static str),
     NotUtf8,
-    BadArray,
+    BadArray(usize, usize),
     ExpectedChar,
     ExpectedLine,
     ExpectedTuple(usize),
@@ -97,7 +97,9 @@ impl fmt::Display for ErrorKind {
             ErrorKind::NotInteger(n) => write!(f, "not an integer or integer overflow `{n}`"),
             ErrorKind::NotFloat(n) => write!(f, "not a float `{n}`"),
             ErrorKind::NotUtf8 => write!(f, "not utf-8"),
-            ErrorKind::BadArray => write!(f, "bad array"),
+            ErrorKind::BadArray(expected, actual) => {
+                write!(f, "bad array; expected {expected}, but got {actual}")
+            }
             ErrorKind::ExpectedChar => write!(f, "exptected charater"),
             ErrorKind::ExpectedLine => write!(f, "bad line"),
             ErrorKind::UnexpectedEof => write!(f, "unexpected eof"),
