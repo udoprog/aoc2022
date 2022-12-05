@@ -17,17 +17,11 @@ macro_rules! from_input {
                     return Ok(None);
                 };
 
-                match (|$($value)*: $ty| -> core::result::Result<$out, $crate::macro_support::Error> {
+                match (|$($value)*: $ty| -> core::result::Result<$out, $crate::input::ErrorKind> {
                     $block
-                })(value)
-                {
+                })(value) {
                     Ok(value) => Ok(Some(value)),
-                    Err(e) => {
-                        match e.downcast() {
-                            Ok(error) => Err(error),
-                            Err(e) => Err($crate::input::IStrError::new(index..p.index(), $crate::input::ErrorKind::Boxed(e)))
-                        }
-                    }
+                    Err(kind) => Err($crate::input::IStrError::new(index..p.index(), kind)),
                 }
             }
         }

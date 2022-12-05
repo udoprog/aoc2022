@@ -3,7 +3,22 @@ use core::fmt;
 use std::ops::Range;
 
 use crate::env::Size;
-use crate::input::{ErrorKind, IStrError};
+use crate::input::IStrError;
+
+#[derive(Debug)]
+enum ErrorKind {
+    IStr(crate::input::ErrorKind),
+    Boxed(anyhow::Error),
+}
+
+impl fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ErrorKind::IStr(e) => e.fmt(f),
+            ErrorKind::Boxed(e) => e.fmt(f),
+        }
+    }
+}
 
 /// A line and column combination.
 #[derive(Default, Debug, Clone, Copy)]
@@ -31,7 +46,7 @@ impl fmt::Display for LineCol {
 /// multiple layers of processing.
 fn find_cause(error: anyhow::Error) -> (ErrorKind, Range<Size>) {
     match error.downcast::<IStrError>() {
-        Ok(e) => (e.kind, e.span),
+        Ok(e) => (ErrorKind::IStr(e.kind), e.span),
         Err(e) => (ErrorKind::Boxed(e), Size::ZERO..Size::ZERO),
     }
 }
@@ -47,8 +62,11 @@ pub struct CliError {
 impl CliError {
     /// Constructor used in macros.
     #[doc(hidden)]
-    pub fn cli(path: &'static str, data: &'static [u8], error: anyhow::Error) -> Self {
-        let (kind, span) = find_cause(error);
+    pub fn cli<E>(path: &'static str, data: &'static [u8], error: E) -> Self
+    where
+        anyhow::Error: From<E>,
+    {
+        let (kind, span) = find_cause(error.into());
         let pos = crate::env::pos_from(data, span);
 
         Self {
