@@ -1,5 +1,6 @@
 //! CLI helpers.
 
+mod output_eq;
 mod stdout_logger;
 
 use std::fmt;
@@ -9,6 +10,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
+
+pub use self::output_eq::OutputEq;
 
 /// Default warmup period in seconds.
 const DEFAULT_WARMUP: u64 = 100;
@@ -125,10 +128,11 @@ impl Bencher {
 
     /// Bench the given fn.
     #[inline]
-    pub fn iter<T, O>(&mut self, opts: &Opts, expected: Option<O>, iter: T) -> Result<()>
+    pub fn iter<T, O, E>(&mut self, opts: &Opts, expected: Option<E>, iter: T) -> Result<()>
     where
         T: FnMut() -> Result<O>,
-        O: fmt::Debug + PartialEq,
+        O: fmt::Debug + OutputEq<E>,
+        E: fmt::Debug,
     {
         let stdout = std::io::stdout();
 
@@ -148,16 +152,17 @@ impl Bencher {
         Ok(())
     }
 
-    fn inner_iter<T, O>(
+    fn inner_iter<T, O, E>(
         &mut self,
         o: &mut Output<impl Write>,
         opts: &Opts,
-        expected: Option<O>,
+        expected: Option<E>,
         mut iter: T,
     ) -> Result<()>
     where
         T: FnMut() -> Result<O>,
-        O: fmt::Debug + PartialEq,
+        O: fmt::Debug + OutputEq<E>,
+        E: fmt::Debug,
     {
         let warmup = Duration::from_millis(opts.warmup.unwrap_or(DEFAULT_WARMUP));
         let time = Duration::from_millis(opts.time.unwrap_or(DEFAULT_TIME));
@@ -172,7 +177,7 @@ impl Bencher {
                 let cur = Instant::now();
 
                 if let Some(expect) = &expected {
-                    if value != *expect {
+                    if !value.output_eq(expect) {
                         bail!("{value:?} (value) != {expect:?} (expected)");
                     }
                 }
@@ -200,7 +205,7 @@ impl Bencher {
                 let cur = Instant::now();
 
                 if let Some(expect) = &expected {
-                    if value != *expect {
+                    if !value.output_eq(expect) {
                         bail!("{value:?} (value) != {expect:?} (expected)");
                     }
                 }
@@ -221,7 +226,7 @@ impl Bencher {
                 let cur = Instant::now();
 
                 if let Some(expect) = &expected {
-                    if value != *expect {
+                    if !value.output_eq(expect) {
                         bail!("{value:?} (value) != {expect:?} (expected)");
                     }
                 }
