@@ -11,8 +11,6 @@ macro_rules! from_input {
             fn try_from_input(
                 p: &mut $crate::input::IStr,
             ) -> core::result::Result<Option<Self>, $crate::input::IStrError> {
-                let original = *p;
-
                 let Some(value) = $crate::input::FromInput::try_from_input(p)? else {
                     return Ok(None);
                 };
@@ -23,7 +21,6 @@ macro_rules! from_input {
                 {
                     Ok(value) => Ok(Some(value)),
                     Err(e) => {
-                        *p = original;
                         Err($crate::input::IStrError::Boxed(e))
                     }
                 }

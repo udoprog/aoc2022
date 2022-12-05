@@ -1,7 +1,6 @@
 //! Input parser.
 
 mod iter;
-pub mod muck;
 
 use core::fmt;
 use core::mem;
@@ -78,7 +77,7 @@ impl fmt::Display for LineCol {
 }
 
 /// Helper to parse input.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct IStr {
     /// The path being parsed.
     data: &'static [u8],
@@ -92,60 +91,57 @@ impl IStr {
     }
 
     /// Cosntruct an iterator over the current input.
+    #[inline]
     pub fn iter<T>(&mut self) -> Iter<'_, T> {
         Iter::new(self)
     }
 
     /// Test if input is empty.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
 
     /// Get the length of the current input.
+    #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
-    /// Get remaining bytes the input.
-    pub fn as_bytes(&self) -> &'static [u8] {
+    /// Get input being processed.
+    #[inline]
+    pub fn as_data(&self) -> &'static [u8] {
         self.data
     }
 
     /// Get remaining binary string of the input.
     pub fn as_bstr(&self) -> &BStr {
-        BStr::new(self.as_bytes())
+        BStr::new(self.as_data())
     }
 
     /// Split `N` times.
-    pub fn splitn(&self, byte: u8) -> impl InputIterator {
-        return Iterator {
-            input: self.clone(),
-            byte,
-        };
+    #[inline]
+    pub fn splitn(&mut self, byte: u8) -> impl InputIterator + '_ {
+        return Iterator { input: self, byte };
 
-        struct Iterator {
-            input: IStr,
+        struct Iterator<'a> {
+            input: &'a mut IStr,
             byte: u8,
         }
 
-        impl InputIterator for Iterator {
+        impl<'a> InputIterator for Iterator<'a> {
             #[inline]
-            fn len(&self) -> usize {
-                self.input.len()
-            }
-
-            #[inline]
-            fn try_next(&mut self) -> Option<IStr> {
+            fn next(&mut self) -> Option<IStr> {
                 self.input.split_once(self.byte)
             }
         }
     }
 
     /// Get the current input position based on the given index.
-    pub fn pos_from(&self, start: &IStr) -> LineCol {
-        let index = start.len().saturating_sub(self.len());
+    pub fn pos_from(&self, original: &[u8]) -> LineCol {
+        let index = original.len().saturating_sub(self.len());
 
-        let Some(data) = start.data.get(..=index) else {
+        let Some(data) = original.get(..=index) else {
             return LineCol::EMPTY;
         };
 
@@ -189,8 +185,11 @@ impl IStr {
     where
         T: FromInput,
     {
-        let Nl(mut line) = self.next::<Nl<IStr>>()?;
-        line.next()
+        let Some(line) = self.try_line()? else {
+            return Err(IStrError::ExpectedLine);
+        };
+
+        Ok(line)
     }
 
     /// Parse the next value as `T`, errors with `Err(IStrError)` if the next
@@ -201,15 +200,11 @@ impl IStr {
     where
         T: FromInput,
     {
-        let original = *self;
-
-        let Some(Nl(mut line)) = self.try_next::<Nl<IStr>>()? else {
+        let Some(mut line) = self.split_once(NL) else {
             return Ok(None);
         };
 
         let Some(output) = line.try_next()? else {
-            // NB: Restore original buffer if input doesn't parse.
-            *self = original;
             return Ok(None);
         };
 
@@ -231,8 +226,7 @@ impl IStr {
         };
 
         let data = self.data.get(..at)?;
-        let start = at.checked_add(1)?;
-        self.data = self.data.get(start..)?;
+        self.advance(at.checked_add(1)?);
         Some(IStr::new(data))
     }
 
@@ -249,10 +243,6 @@ impl IStr {
 
     #[inline]
     fn advance(&mut self, n: usize) {
-        if n == 0 {
-            return;
-        }
-
         self.data = self.data.get(n..).unwrap_or_default();
     }
 
@@ -278,10 +268,7 @@ pub trait FromInput: Sized {
 
     /// Parse a value from a given input.
     fn from_input(p: &mut IStr) -> Result<Self> {
-        let original = *p;
-
         let Some(value) = Self::try_from_input(p)? else {
-            *p = original;
             return Err(Self::error_kind());
         };
 
@@ -291,34 +278,14 @@ pub trait FromInput: Sized {
 
 /// Iterator over inputs.
 pub trait InputIterator {
-    #[inline]
-    fn error_kind() -> IStrError {
-        IStrError::UnexpectedEof
-    }
-
-    /// Get tail index of iterator.
-    fn len(&self) -> usize;
-
     /// Get next input.
-    fn try_next(&mut self) -> Option<IStr>;
-
-    /// Require next input.
-    fn next(&mut self, p: &mut IStr) -> Result<IStr> {
-        let original = *p;
-
-        let Some(value) = Self::try_next(self) else {
-            *p = original;
-            return Err(Self::error_kind());
-        };
-
-        Ok(value)
-    }
+    fn next(&mut self) -> Option<IStr>;
 }
 
 /// Parse something from a pair of inputs.
 pub trait FromInputIter: Sized {
     /// Optionally try to confuse input ignoring leading whitespace by default.
-    fn from_input_iter<I>(p: &mut IStr, inputs: &mut I) -> Result<Option<Self>>
+    fn from_input_iter<I>(inputs: I) -> Result<Option<Self>>
     where
         I: InputIterator;
 }
@@ -337,16 +304,12 @@ macro_rules! tuple {
 
             #[inline]
             fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-                let original = *p;
-
                 let Some($first_id) = p.try_next()? else {
-                    *p = original;
                     return Ok(None);
                 };
 
                 $(
                     let Some($rest_id) = p.try_next()? else {
-                        *p = original;
                         return Ok(None);
                     };
                 )*
@@ -361,16 +324,16 @@ macro_rules! tuple {
             $($rest: FromInput,)*
         {
             #[inline]
-            fn from_input_iter<I>(_: &mut IStr, inputs: &mut I) -> Result<Option<Self>>
+            fn from_input_iter<I>(mut inputs: I) -> Result<Option<Self>>
             where
                 I: InputIterator
             {
-                let Some(mut $first_id) = inputs.try_next() else {
+                let Some(mut $first_id) = inputs.next() else {
                     return Ok(None);
                 };
 
                 $(
-                    let Some(mut $rest_id) = inputs.try_next() else {
+                    let Some(mut $rest_id) = inputs.next() else {
                         return Ok(None);
                     };
                 )*
@@ -397,14 +360,11 @@ macro_rules! integer {
         impl FromInput for $ty {
             #[inline]
             fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-                let original = *p;
-
                 let Some(W(string)) = <W<&str>>::try_from_input(p)? else {
                     return Ok(None);
                 };
 
                 let Ok(n) = str::parse(string) else {
-                    *p = original;
                     return Err(IStrError::$error(string));
                 };
 
@@ -510,10 +470,7 @@ where
             return Ok(None);
         }
 
-        let original = *p;
-
         let Some(mut input) = p.split_once(NL) else {
-            *p = original;
             return Err(IStrError::ExpectedLine);
         };
 
@@ -541,7 +498,7 @@ impl FromInput for Ws {
             return Ok(Some(Self(0)));
         };
 
-        p.data = p.data.get(n..).unwrap_or_default();
+        p.advance(n);
         Ok(Some(Self(memchr::memchr_iter(NL, data).count())))
     }
 }
@@ -553,11 +510,9 @@ where
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
         let mut output = arrayvec::ArrayVec::new();
-        let original = *p;
 
         while let Some(element) = T::try_from_input(p)? {
             if output.remaining_capacity() == 0 {
-                *p = original;
                 return Err(IStrError::ArrayCapacity(N));
             }
 
@@ -594,13 +549,12 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        let mut it = p.splitn(D as u8);
+        let it = p.splitn(D as u8);
 
-        let Some(out) = T::from_input_iter(p, &mut it)? else {
+        let Some(out) = T::from_input_iter(it)? else {
             return Ok(None);
         };
 
-        p.data = p.data.get(it.len()..).unwrap_or_default();
         Ok(Some(Self(out)))
     }
 }
@@ -628,15 +582,14 @@ where
     T: FromInput,
 {
     #[inline]
-    fn from_input_iter<I>(p: &mut IStr, inputs: &mut I) -> Result<Option<Self>>
+    fn from_input_iter<I>(mut inputs: I) -> Result<Option<Self>>
     where
         I: InputIterator,
     {
-        let original = *p;
         let mut vec = ArrayVec::new();
 
         while vec.remaining_capacity() > 0 {
-            let Some(mut value) = inputs.try_next() else {
+            let Some(mut value) = inputs.next() else {
                 return Ok(None);
             };
 
@@ -648,7 +601,6 @@ where
         }
 
         let Ok(value) = vec.into_inner() else {
-            *p = original;
             return Err(IStrError::BadArray);
         };
 
@@ -675,31 +627,31 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        let mut end = 0;
+        let mut n = 0;
 
-        while let Some(c) = p.at(end) {
+        while let Some(c) = p.at(n) {
             if !(c.is_ascii_whitespace() || c.is_ascii_control()) {
                 break;
             }
 
-            end = end.saturating_add(1);
+            n = n.saturating_add(1);
         }
 
-        let start = end;
+        let s = n;
 
-        while let Some(c) = p.at(end) {
+        while let Some(c) = p.at(n) {
             if c.is_ascii_whitespace() || c.is_ascii_control() {
                 break;
             }
 
-            end = end.saturating_add(1);
+            n = n.saturating_add(1);
         }
 
-        if start == end {
+        if s == n {
             return Ok(None);
         }
 
-        let Some(mut input) = p.slice(start..end) else {
+        let Some(mut input) = p.slice(s..n) else {
             return Ok(None);
         };
 
@@ -707,7 +659,7 @@ where
             return Ok(None);
         };
 
-        p.data = p.data.get(end..).unwrap_or_default();
+        p.advance(n);
         Ok(Some(Self(value)))
     }
 }

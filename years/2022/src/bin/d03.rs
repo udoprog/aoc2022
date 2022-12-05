@@ -2,7 +2,7 @@ use lib::prelude::*;
 
 #[entry(input = "d03.txt", expect = (8233, 2821))]
 fn main(input: &mut IStr) -> Result<(u32, u32)> {
-    let mut part2_input = *input;
+    let original = input.clone();
 
     let mut part1 = 0;
     let mut part2 = 0;
@@ -12,7 +12,10 @@ fn main(input: &mut IStr) -> Result<(u32, u32)> {
         part1 += (set(first) & set(second)).trailing_zeros();
     }
 
-    while let Some((S(a), S(b), S(c))) = part2_input.try_next::<(S, S, S)>()? {
+    // Reset input.
+    *input = original;
+
+    while let Some((S(a), S(b), S(c))) = input.try_next::<(S, S, S)>()? {
         part2 += (a & b & c).trailing_zeros();
     }
 
@@ -30,7 +33,7 @@ fn score(c: u8) -> u64 {
 struct S(u64);
 
 lib::from_input! {
-    |W(v): W<&'static [u8]>| -> S { Ok(S(set(v))) }
+    |W(v): W<&'static BStr>| -> S { Ok(S(set(v))) }
 }
 
 fn set(string: &[u8]) -> u64 {

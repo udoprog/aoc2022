@@ -11,7 +11,7 @@ pub mod macro_support {
 pub mod prelude {
     //! Helper prelude with useful imports.
     pub use crate::input::{IStr, Nl, NonEmpty, Range, Split, Ws, W};
-    pub use anyhow::{anyhow, bail, Context, Result};
+    pub use anyhow::{anyhow, bail, ensure, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub type ArrayString<const N: usize = 16> = arrayvec::ArrayString<N>;
     pub use bstr::{BStr, ByteSlice};
@@ -67,15 +67,4 @@ macro_rules! input {
             path,
         )
     }};
-}
-
-#[macro_export]
-macro_rules! timeit {
-    ($($tt:tt)*) => {{
-        let start = std::time::Instant::now();
-        let out = { $($tt)* };
-        let d = std::time::Instant::now().duration_since(start);
-        println!("time: {d:?}");
-        out
-    }}
 }
