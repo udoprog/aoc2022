@@ -185,7 +185,7 @@ impl<'a> ItemParser<'a> {
 
         let tokens = self.base.into_tokens();
 
-        ItemOutput::new(tokens, fn_name, block)
+        ItemOutput::new(tokens, fn_name)
     }
 
     /// Since generics are implemented using angle brackets.

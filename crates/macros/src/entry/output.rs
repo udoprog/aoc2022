@@ -1,4 +1,4 @@
-use proc_macro::{Literal, Span, TokenTree};
+use proc_macro::{Delimiter, Group, Literal, Span, TokenTree};
 
 use crate::error::Error;
 use crate::into_tokens::{braced, from_fn, parens, IntoTokens};
@@ -26,43 +26,38 @@ impl Config {
 pub(crate) struct ItemOutput {
     tokens: Vec<TokenTree>,
     fn_name: Option<usize>,
-    block: Option<usize>,
 }
 
 impl ItemOutput {
-    pub(crate) fn new(
-        tokens: Vec<TokenTree>,
-        fn_name: Option<usize>,
-        block: Option<usize>,
-    ) -> Self {
-        Self {
-            tokens,
-            fn_name,
-            block,
-        }
-    }
-
-    pub(crate) fn block_span(&self) -> Option<Span> {
-        let block = *self.block.as_ref()?;
-        Some(self.tokens.get(block)?.span())
+    pub(crate) fn new(tokens: Vec<TokenTree>, fn_name: Option<usize>) -> Self {
+        Self { tokens, fn_name }
     }
 
     /// Expand into a function item.
-    pub(crate) fn expand_item(self, config: &Config) -> impl IntoTokens + '_ {
+    pub(crate) fn expand_item(
+        self,
+        config: &Config,
+        item_stream: proc_macro::TokenStream,
+    ) -> impl IntoTokens + '_ {
         from_fn(move |s| {
-            if let Some(item) = self.expand_if_present(config) {
-                s.write(item);
+            let fn_name = self.fn_name.and_then(|n| self.tokens.get(n));
+
+            if let Some(fn_name) = fn_name {
+                s.write(self.expand_main(config, fn_name, item_stream));
             } else {
-                s.write(&self.tokens[..]);
+                s.write(TokenTree::Group(Group::new(Delimiter::None, item_stream)));
             }
         })
     }
 
     /// Expands the function item if all prerequisites are present.
-    fn expand_if_present<'a>(&'a self, config: &'a Config) -> Option<impl IntoTokens + 'a> {
+    fn expand_main<'a>(
+        &'a self,
+        config: &'a Config,
+        fn_name: &TokenTree,
+        item_stream: proc_macro::TokenStream,
+    ) -> impl IntoTokens + 'a {
         let m = Mod;
-
-        let fn_name = self.tokens.get(self.fn_name?)?;
 
         let (input_decl, input_arg) = match &config.input_file {
             Some(input) => {
@@ -116,10 +111,9 @@ impl ItemOutput {
 
         let anyhow_result = ("lib", S, "prelude", S, "Result", '<', parens(()), '>');
         let signature = ("fn", "main", parens(()), ['-', '>'], anyhow_result);
-        Some((
-            signature,
-            braced((&self.tokens[..], block, match_mode, ok_return)),
-        ))
+
+        let original = TokenTree::Group(Group::new(Delimiter::None, item_stream));
+        (signature, braced((original, block, match_mode, ok_return)))
     }
 }
 
@@ -188,7 +182,15 @@ impl IntoTokens for CollectCall<'_> {
 
         let handle_error = from_fn(|s| {
             let pos = ("input", '.', "pos", parens(()));
-            let error = (m, "cli", S, "CliError", S, "new", parens(("path", ',', pos, ',', "error")));
+            let error = (
+                m,
+                "cli",
+                S,
+                "CliError",
+                S,
+                "new",
+                parens(("path", ',', pos, ',', "error")),
+            );
             s.write(("return", "Err"));
             s.write(parens((error, '.', "into", parens(()))));
         });
@@ -202,10 +204,7 @@ impl IntoTokens for CollectCall<'_> {
             })));
         });
 
-        stream.write(
-            span,
-            ("let", compare.binding(), '=', handle_error, ';'),
-        );
+        stream.write(span, ("let", compare.binding(), '=', handle_error, ';'));
 
         stream.write(span, compare);
     }

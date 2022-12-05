@@ -2,9 +2,29 @@ use proc_macro::{Delimiter, Ident, Literal, Punct, Spacing, Span, TokenTree};
 
 use crate::token_stream::TokenStream;
 
+/// Override the current span.
+pub(crate) struct WithSpan<T>(T, Span);
+
+impl<T> IntoTokens for WithSpan<T>
+where
+    T: IntoTokens,
+{
+    #[inline]
+    fn into_tokens(self, stream: &mut TokenStream, _: Span) {
+        self.0.into_tokens(stream, self.1);
+    }
+}
+
 pub(crate) trait IntoTokens {
     /// Convert into tokens.
     fn into_tokens(self, stream: &mut TokenStream, span: Span);
+
+    fn with_span(self, span: Span) -> WithSpan<Self>
+    where
+        Self: Sized,
+    {
+        WithSpan(self, span)
+    }
 }
 
 impl IntoTokens for TokenStream {
@@ -15,9 +35,8 @@ impl IntoTokens for TokenStream {
 }
 
 impl IntoTokens for proc_macro::TokenStream {
-    fn into_tokens(self, stream: &mut TokenStream, span: Span) {
-        for mut tt in self {
-            tt.set_span(span);
+    fn into_tokens(self, stream: &mut TokenStream, _: Span) {
+        for tt in self {
             stream.push(tt);
         }
     }
@@ -25,17 +44,15 @@ impl IntoTokens for proc_macro::TokenStream {
 
 impl IntoTokens for Literal {
     #[inline]
-    fn into_tokens(self, stream: &mut TokenStream, span: Span) {
-        let mut tt = TokenTree::Literal(self);
-        tt.set_span(span);
+    fn into_tokens(self, stream: &mut TokenStream, _: Span) {
+        let tt = TokenTree::Literal(self);
         stream.push(tt);
     }
 }
 
 impl IntoTokens for TokenTree {
     #[inline]
-    fn into_tokens(mut self, stream: &mut TokenStream, span: Span) {
-        self.set_span(span);
+    fn into_tokens(self, stream: &mut TokenStream, _: Span) {
         stream.push(self);
     }
 }
@@ -155,14 +172,6 @@ impl IntoTokens for StringLiteral<'_> {
         let mut literal = Literal::string(self.0);
         literal.set_span(span);
         stream.push(TokenTree::Literal(literal));
-    }
-}
-
-impl IntoTokens for &[TokenTree] {
-    fn into_tokens(self, stream: &mut TokenStream, _: Span) {
-        for tt in self {
-            stream.push(tt.clone());
-        }
     }
 }
 
