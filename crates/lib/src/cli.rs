@@ -125,11 +125,9 @@ pub struct Report {
     pub p95: Duration,
     pub p99: Duration,
     pub count: usize,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub min: Option<Duration>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max: Option<Duration>,
-    pub sum: Duration,
+    pub min: Duration,
+    pub max: Duration,
+    pub avg: Duration,
 }
 
 impl Report {
@@ -137,19 +135,27 @@ impl Report {
         p50: Duration,
         p95: Duration,
         p99: Duration,
-        samples: usize,
+        count: usize,
         min: Duration,
         max: Duration,
         sum: Duration,
     ) -> Self {
+        let avg = if count == 0 {
+            Duration::default()
+        } else {
+            Duration::from_nanos(
+                u64::try_from((sum.as_nanos()) / (count as u128)).unwrap_or_default(),
+            )
+        };
+
         Self {
             p50,
             p95,
             p99,
-            count: samples,
-            min: Some(min),
-            max: Some(max),
-            sum,
+            count,
+            min,
+            max,
+            avg,
         }
     }
 }
@@ -163,20 +169,10 @@ impl fmt::Display for Report {
             count,
             min,
             max,
-            sum,
+            avg,
         } = self;
 
-        let avg = if *count == 0 {
-            Duration::default()
-        } else {
-            Duration::from_nanos(
-                u64::try_from((sum.as_nanos()) / (*count as u128)).unwrap_or_default(),
-            )
-        };
-
-        let min = Maybe(min);
-        let max = Maybe(max);
-        write!(f, "count: {count}, min: {min}, max: {max}, avg: {avg:?}, 50th: {p50:?}, 95th: {p95:?}, 99th: {p99:?}")
+        write!(f, "count: {count}, min: {min:?}, max: {max:?}, avg: {avg:?}, 50th: {p50:?}, 95th: {p95:?}, 99th: {p99:?}")
     }
 }
 
@@ -200,8 +196,8 @@ impl AddAssign<&Report> for Report {
         self.p95 += rhs.p95;
         self.p99 += rhs.p99;
         self.count += rhs.count;
-        self.min = self.min.and_then(|d| Some(d.min(rhs.min?))).or(rhs.min);
-        self.max = self.max.and_then(|d| Some(d.max(rhs.max?))).or(rhs.max);
-        self.sum += rhs.sum;
+        self.min += rhs.min;
+        self.max += rhs.max;
+        self.avg += rhs.avg;
     }
 }
