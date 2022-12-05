@@ -5,7 +5,8 @@ fn main(mut input: Input) -> Result<(i32, i32)> {
     let mut part1 = 0;
     let mut part2 = 0;
 
-    while let Some((Move(a), Move(b))) = input.try_next()? {
+    for value in input.iter() {
+        let (Move(a), Move(b)) = value?;
         part1 += (2 - (a - b + 1).rem_euclid(3)) * 3 + b + 1;
         part2 += b * 3 + (a + b - 1).rem_euclid(3) + 1;
     }

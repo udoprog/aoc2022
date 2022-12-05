@@ -4,8 +4,8 @@ use lib::prelude::*;
 fn main(mut input: Input) -> Result<(ArrayString, ArrayString)> {
     let mut stacks1 = ArrayVec::<ArrayVec<_, 128>, 10>::new();
 
-    while let Some(line) = input.try_line::<&str>()?.filter(|s| !s.is_empty()) {
-        for (n, chunk) in line.as_bytes().chunks(4).enumerate() {
+    while let Some(line) = input.try_line::<Input>()?.filter(|s| !s.is_empty()) {
+        for (n, chunk) in line.as_bstr().chunks(4).enumerate() {
             if let Some(&d) = chunk.get(1).filter(|d| matches!(d, b'A'..=b'Z')) {
                 for _ in stacks1.len()..=n {
                     stacks1
@@ -26,7 +26,8 @@ fn main(mut input: Input) -> Result<(ArrayString, ArrayString)> {
 
     let mut stacks2 = stacks1.clone();
 
-    while let Some((_, c, _, from, _, to)) = input.try_line::<(W, usize, W, usize, W, usize)>()? {
+    for line in input.iter::<(W, usize, W, usize, W, usize)>() {
+        let (_, c, _, from, _, to) = line?;
         let from = from.checked_sub(1).context("underflow")?;
         let to = to.checked_sub(1).context("underflow")?;
 
