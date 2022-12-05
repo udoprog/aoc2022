@@ -1,5 +1,6 @@
 use core::convert::Infallible;
 use core::fmt;
+use std::ops::Range;
 
 use crate::input::{ErrorKind, IStrError, NL};
 
@@ -7,35 +8,40 @@ use crate::input::{ErrorKind, IStrError, NL};
 #[derive(Default, Debug, Clone, Copy)]
 pub struct LineCol {
     line: usize,
-    column: usize,
+    start: usize,
+    end: usize,
 }
 
 impl LineCol {
-    const EMPTY: Self = Self { line: 0, column: 0 };
+    const EMPTY: Self = Self {
+        line: 0,
+        start: 0,
+        end: 0,
+    };
 }
 
 impl fmt::Display for LineCol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line + 1, self.column)
+        write!(f, "{}:{}-{}", self.line + 1, self.start, self.end)
     }
 }
 
 /// Need to be able to unwrap an error fully in case it's threaded through
 /// multiple layers of processing.
-fn find_cause(error: anyhow::Error) -> (ErrorKind, usize) {
+fn find_cause(error: anyhow::Error) -> (ErrorKind, Range<usize>) {
     match error.downcast::<IStrError>() {
-        Ok(e) => (e.kind, e.index),
-        Err(e) => (ErrorKind::Boxed(e), 0),
+        Ok(e) => (e.kind, e.span),
+        Err(e) => (ErrorKind::Boxed(e), 0..0),
     }
 }
 
 /// Get the current input position based on the given index.
-pub fn pos_from(data: &[u8], index: usize) -> LineCol {
-    let Some(data) = data.get(..=index) else {
+pub fn pos_from(data: &[u8], span: Range<usize>) -> LineCol {
+    let Some(d) = data.get(..=span.start) else {
         return LineCol::EMPTY;
     };
 
-    let it = memchr::memchr_iter(NL, data);
+    let it = memchr::memchr_iter(NL, d);
 
     let (line, last) = it
         .enumerate()
@@ -43,10 +49,16 @@ pub fn pos_from(data: &[u8], index: usize) -> LineCol {
         .map(|(line, n)| (line + 1, n))
         .unwrap_or_default();
 
-    LineCol {
-        line,
-        column: data.get(last.saturating_add(1)..).unwrap_or_default().len(),
-    }
+    let start = d.get(last.saturating_add(1)..).unwrap_or_default().len();
+
+    let end = if let Some(end) = data.get(span) {
+        let len = memchr::memchr(NL, end).unwrap_or(end.len());
+        start.saturating_add(len)
+    } else {
+        start
+    };
+
+    LineCol { line, start, end }
 }
 
 /// Various forms of input errors.
@@ -68,8 +80,8 @@ impl CliError {
     }
 
     pub fn cli(path: &'static str, data: &'static [u8], error: anyhow::Error) -> Self {
-        let (kind, index) = find_cause(error);
-        let pos = pos_from(data, index);
+        let (kind, span) = find_cause(error);
+        let pos = pos_from(data, span);
 
         Self {
             path,
