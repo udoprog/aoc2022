@@ -36,7 +36,7 @@ pub fn input(
         crate::cli::CliError::new(
             path,
             Default::default(),
-            crate::input::IStrError::Boxed(error),
+            crate::input::ErrorKind::Boxed(error),
         )
     });
 
@@ -45,7 +45,7 @@ pub fn input(
         let mut buf = Vec::with_capacity(4096);
         file.read_to_end(&mut buf)?;
         *storage = buf;
-        Ok(self::input::IStr::new(storage))
+        Ok(self::input::IStr::new(storage, 0))
     }
 }
 

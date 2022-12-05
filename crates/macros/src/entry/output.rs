@@ -68,14 +68,14 @@ impl ItemOutput {
                     ';',
                 );
                 let start = (
-                    ("let", "input_start", '=', "input"),
+                    ("let", "original", '=', "input"),
                     '.',
                     ("as_data", parens(())),
                     ';',
                 );
-                (Some((decl, start)), IStr::IStr)
+                (Some((decl, start)), Input::Input)
             }
-            None => (None, IStr::Todo),
+            None => (None, Input::Todo),
         };
 
         let parse_opts = (
@@ -160,18 +160,18 @@ impl IntoTokens for Mod {
 }
 
 #[derive(Clone, Copy)]
-enum IStr {
-    IStr,
+enum Input {
+    Input,
     Todo,
 }
 
-impl IntoTokens for IStr {
+impl IntoTokens for Input {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {
         match self {
-            IStr::IStr => {
+            Input::Input => {
                 stream.write(span, ('&', "mut", "input"));
             }
-            IStr::Todo => {
+            Input::Todo => {
                 stream.write(span, "todo");
                 stream.write(span, '!');
                 stream.write(span, parens(()));
@@ -180,22 +180,17 @@ impl IntoTokens for IStr {
     }
 }
 
-struct CollectCall<'a>(TokenTree, IStr, Mod, Compare<'a>);
+struct CollectCall<'a>(TokenTree, Input, Mod, Compare<'a>);
 
 impl IntoTokens for CollectCall<'_> {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {
         let CollectCall(name, input, m, compare) = self;
 
         let handle_error = from_fn(|s| {
-            let pos = ("input", '.', "pos_from", parens("input_start"));
             let error = (
                 m,
-                "cli",
-                S,
-                "CliError",
-                S,
-                "new",
-                parens(("path", ',', pos, ',', "error")),
+                ("cli", S, "CliError", S, "cli"),
+                parens(("path", ',', "original", ',', "error")),
             );
             s.write(("return", "Err"));
             s.write(parens((error, '.', "into", parens(()))));
@@ -216,7 +211,7 @@ impl IntoTokens for CollectCall<'_> {
     }
 }
 
-struct BenchCall(TokenTree, IStr);
+struct BenchCall(TokenTree, Input);
 
 impl IntoTokens for BenchCall {
     fn into_tokens(self, stream: &mut TokenStream, span: Span) {
