@@ -10,7 +10,7 @@ pub mod macro_support {
 
 pub mod prelude {
     //! Helper prelude with useful imports.
-    pub use crate::input::{Input, Nl, Range, Split, Ws, W};
+    pub use crate::input::{Input, Nl, NonEmpty, Range, Split, Ws, W};
     pub use anyhow::{anyhow, bail, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub type ArrayString<const N: usize = 16> = arrayvec::ArrayString<N>;

@@ -1,5 +1,6 @@
 //! Input parser.
 
+mod iter;
 pub mod muck;
 
 use std::convert::Infallible;
@@ -10,6 +11,8 @@ use std::str::from_utf8;
 
 use arrayvec::ArrayVec;
 use bstr::BStr;
+
+pub use self::iter::Iter;
 
 pub(self) type Result<T> = std::result::Result<T, InputError>;
 
@@ -132,6 +135,23 @@ impl Input {
             index: 0,
             range: 0..data.len(),
         }
+    }
+
+    /// Cosntruct an iterator over the current input.
+    pub fn iter<T>(&mut self) -> Iter<'_, T> {
+        Iter::new(self)
+    }
+
+    /// Test if input is empty.
+    pub fn is_empty(&self) -> bool {
+        debug_assert!(self.range.end >= self.index);
+        self.index == self.range.end
+    }
+
+    /// Get the length of the current input.
+    pub fn len(&self) -> usize {
+        debug_assert!(self.range.end >= self.index);
+        self.range.end.saturating_sub(self.index)
     }
 
     /// Get current index.
@@ -789,5 +809,22 @@ where
 
         p.index = end;
         Ok(Some(Self(value)))
+    }
+}
+
+/// Filter out empty values.
+pub struct NonEmpty<T>(pub T);
+
+impl<T> FromInput for NonEmpty<T>
+where
+    T: FromInput,
+{
+    #[inline]
+    fn try_from_input(p: &mut Input) -> Result<Option<Self>> {
+        if p.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(T::try_from_input(p)?.map(Self))
     }
 }

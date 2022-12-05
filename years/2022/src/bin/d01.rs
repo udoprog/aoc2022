@@ -5,7 +5,9 @@ fn main(mut input: Input) -> Result<(u32, u32)> {
     let mut output = [0; 4];
     let mut calories = 0u32;
 
-    while let Some((n, Ws(lines))) = input.try_next::<(u32, _)>()? {
+    for value in input.iter::<(u32, _)>() {
+        let (n, Ws(lines)) = value?;
+
         calories += n;
 
         if lines == 2 {
