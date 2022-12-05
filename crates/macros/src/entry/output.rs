@@ -67,7 +67,12 @@ impl ItemOutput {
                     (m, "input", '!', parens(input.clone())),
                     ';',
                 );
-                let start = ("let", "input_start", '=', "input", ';');
+                let start = (
+                    ("let", "input_start", '=', "input"),
+                    '.',
+                    ("as_data", parens(())),
+                    ';',
+                );
                 (Some((decl, start)), IStr::IStr)
             }
             None => (None, IStr::Todo),
@@ -182,7 +187,7 @@ impl IntoTokens for CollectCall<'_> {
         let CollectCall(name, input, m, compare) = self;
 
         let handle_error = from_fn(|s| {
-            let pos = ("input", '.', "pos_from", parens(('&', "input_start")));
+            let pos = ("input", '.', "pos_from", parens("input_start"));
             let error = (
                 m,
                 "cli",

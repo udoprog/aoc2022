@@ -1,4 +1,3 @@
-use lib::input::muck::Muck2;
 use lib::prelude::*;
 
 #[entry(input = "d04.txt", expect = (582, 893))]
@@ -25,7 +24,7 @@ struct Span {
 }
 
 lib::from_input! {
-    |Split((Muck2(start), Muck2(end))): Split<'-', (Muck2, Muck2)>| -> Span {
+    |Split((start, end)): Split<'-', (u8, u8)>| -> Span {
         Ok(Span { start, end })
     }
 }
