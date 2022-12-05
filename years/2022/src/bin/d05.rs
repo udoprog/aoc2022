@@ -1,6 +1,6 @@
 use lib::prelude::*;
 
-#[entry(input = "d05.txt", expect = (ArrayString::from("RFFFWBPNS").unwrap(), ArrayString::from("CQQBBJFCS").unwrap()))]
+#[entry(input = "d05.txt", expect = ("RFFFWBPNS", "CQQBBJFCS"))]
 fn main(mut input: Input) -> Result<(ArrayString, ArrayString)> {
     let mut stacks1 = ArrayVec::<ArrayVec<_, 128>, 10>::new();
 

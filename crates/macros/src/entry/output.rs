@@ -89,7 +89,7 @@ impl ItemOutput {
         let mode = (m, "cli", S, "Mode");
 
         let compare = match &config.expect {
-            Some(expect) => Compare::Expected(expect),
+            Some(expect) => Compare::Expected(m, expect),
             _ => Compare::Ignore,
         };
 
@@ -150,7 +150,7 @@ where
     })
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct Mod;
 
 impl IntoTokens for Mod {
@@ -205,7 +205,7 @@ impl IntoTokens for BenchCall {
 #[derive(Debug, Clone, Copy)]
 enum Compare<'a> {
     Ignore,
-    Expected(&'a TokenTree),
+    Expected(Mod, &'a TokenTree),
 }
 
 impl<'a> Compare<'a> {
@@ -219,17 +219,19 @@ impl<'a> Compare<'a> {
     fn expect(self) -> CompareExpect<'a> {
         match self {
             Compare::Ignore => CompareExpect::Ignore,
-            Compare::Expected(value) => CompareExpect::Expected(value),
+            Compare::Expected(_, value) => CompareExpect::Expected(value),
         }
     }
 }
 
 impl IntoTokens for Compare<'_> {
     fn into_tokens(self, stream: &mut TokenStream, _: Span) {
-        if let Compare::Expected(tt) = self {
+        if let Compare::Expected(m, tt) = self {
             let message = TokenTree::Literal(Literal::string("{:?} (value) != {:?} (expected)"));
 
             stream.write(tt.span(), ("let", "expected", '=', tt.clone(), ';'));
+
+            let output_eq = (m, "cli", S, "OutputEq");
 
             stream.write(
                 tt.span(),
@@ -237,9 +239,12 @@ impl IntoTokens for Compare<'_> {
                     "assert",
                     '!',
                     parens((
-                        "value",
-                        ['=', '='],
-                        "expected",
+                        (
+                            output_eq,
+                            S,
+                            "output_eq",
+                            parens(('&', "value", ',', '&', "expected")),
+                        ),
                         ',',
                         message,
                         ',',
