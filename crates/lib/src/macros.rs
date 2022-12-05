@@ -22,11 +22,10 @@ macro_rules! from_input {
                 })(value)
                 {
                     Ok(value) => Ok(Some(value)),
-                    Err(e) => Err($crate::input::InputError::anyhow(
-                        p.path(),
-                        p.pos_of(index),
-                        e,
-                    )),
+                    Err(e) => {
+                        p.set_index(index);
+                        Err($crate::input::InputError::Boxed(e))
+                    }
                 }
             }
         }

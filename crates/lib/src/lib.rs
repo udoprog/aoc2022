@@ -26,23 +26,24 @@ pub fn input(
     path: &'static str,
     read_path: &str,
     storage: &'static mut Vec<u8>,
-) -> anyhow::Result<self::input::Input> {
-    use anyhow::{anyhow, Context};
+) -> Result<self::input::Input, crate::cli::CliError> {
     use std::fs::File;
     use std::io::Read;
 
-    return inner(path, read_path, storage).with_context(|| anyhow!("{path}"));
+    return inner(read_path, storage).map_err(|error| {
+        crate::cli::CliError::new(
+            path,
+            Default::default(),
+            crate::input::InputError::Boxed(error),
+        )
+    });
 
-    fn inner(
-        path: &'static str,
-        read_path: &str,
-        storage: &'static mut Vec<u8>,
-    ) -> anyhow::Result<self::input::Input> {
+    fn inner(read_path: &str, storage: &'static mut Vec<u8>) -> anyhow::Result<self::input::Input> {
         let mut file = File::open(read_path)?;
         let mut buf = Vec::with_capacity(4096);
         file.read_to_end(&mut buf)?;
         *storage = buf;
-        Ok(self::input::Input::new(path, storage))
+        Ok(self::input::Input::new(storage))
     }
 }
 
@@ -61,7 +62,7 @@ macro_rules! input {
         static mut STORAGE: Vec<u8> = Vec::new();
         let path = concat!("inputs/", $path);
         let read_path = concat!(env!("CARGO_MANIFEST_DIR"), "/inputs/", $path);
-        $crate::input(path, read_path, unsafe { &mut STORAGE })?
+        ($crate::input(path, read_path, unsafe { &mut STORAGE })?, path)
     }};
 }
 
