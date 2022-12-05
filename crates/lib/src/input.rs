@@ -51,8 +51,7 @@ impl fmt::Display for InputError {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for InputError {
-}
+impl std::error::Error for InputError {}
 
 impl From<anyhow::Error> for InputError {
     fn from(error: anyhow::Error) -> Self {

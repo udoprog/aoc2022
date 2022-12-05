@@ -22,7 +22,11 @@ impl CliError {
     }
 
     pub fn new(path: &'static str, pos: LineCol, kind: impl Into<InputError>) -> Self {
-        Self { path, pos, kind: kind.into() }
+        Self {
+            path,
+            pos,
+            kind: kind.into(),
+        }
     }
 }
 

@@ -62,7 +62,10 @@ macro_rules! input {
         static mut STORAGE: Vec<u8> = Vec::new();
         let path = concat!("inputs/", $path);
         let read_path = concat!(env!("CARGO_MANIFEST_DIR"), "/inputs/", $path);
-        ($crate::input(path, read_path, unsafe { &mut STORAGE })?, path)
+        (
+            $crate::input(path, read_path, unsafe { &mut STORAGE })?,
+            path,
+        )
     }};
 }
 

@@ -21,16 +21,15 @@ pub(crate) fn build(
 
     config.validate(&mut errors);
 
-    let item = parser::ItemParser::new(item_stream, &mut buf);
+    let item = parser::ItemParser::new(item_stream.clone(), &mut buf);
     let item = item.parse();
-
     let mut stream = TokenStream::default();
 
-    let span = item.block_span().unwrap_or_else(Span::call_site);
+    let span = Span::call_site();
 
-    item.expand_item(&config).into_tokens(&mut stream, span);
     format_item_errors(errors).into_tokens(&mut stream, span);
-
+    item.expand_item(&config, item_stream)
+        .into_tokens(&mut stream, span);
     stream.into_token_stream()
 }
 
