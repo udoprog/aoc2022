@@ -1,16 +1,13 @@
-use lib::{input::IStrError, prelude::*};
+#![allow(warnings, unused)]
 
-#[entry(input = "d06.txt", expect = true)]
-fn main(input: &mut IStr) -> Result<bool, IStrError> {
-    while let Some(line) = input.try_line::<IStr>()?.filter(|s| !s.is_empty()) {
-        for (n, chunk) in line.as_bstr().chunks(4).enumerate() {
-            if let Some(&d) = chunk.get(1).filter(|d| matches!(d, b'A'..=b'Z')) {}
-        }
-    }
+use lib::prelude::*;
 
-    for line in input.iter::<(W, usize, W, usize, W, usize)>() {
-        let _ = line?;
-    }
+#[entry(input = "d06.txt", expect = (0, 0))]
+fn main(input: &mut IStr) -> Result<(u32, u32)> {
+    let mut part1 = 0;
+    let mut part2 = 0;
 
-    Ok(true)
+    while let Some(..) = input.try_line::<IStr>()? {}
+
+    Ok((part1, part2))
 }
