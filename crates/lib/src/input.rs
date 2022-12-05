@@ -14,11 +14,11 @@ pub use self::iter::Iter;
 
 pub(self) type Result<T> = std::result::Result<T, IStrError>;
 
-const NL: u8 = b'\n';
+pub(crate) const NL: u8 = b'\n';
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum IStrError {
+pub enum ErrorKind {
     NotInteger(&'static str),
     NotFloat(&'static str),
     NotUtf8,
@@ -32,21 +32,41 @@ pub enum IStrError {
     Boxed(anyhow::Error),
 }
 
-impl fmt::Display for IStrError {
+impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IStrError::NotInteger(n) => write!(f, "not an integer or integer overflow `{n}`"),
-            IStrError::NotFloat(n) => write!(f, "not a float `{n}`"),
-            IStrError::NotUtf8 => write!(f, "not utf-8"),
-            IStrError::BadArray => write!(f, "bad array"),
-            IStrError::ExpectedChar => write!(f, "exptected charater"),
-            IStrError::ExpectedLine => write!(f, "bad line"),
-            IStrError::UnexpectedEof => write!(f, "unexpected eof"),
-            IStrError::ExpectedTuple(n) => write!(f, "expected tuple of length `{n}`"),
-            IStrError::NotByteMuck => write!(f, "not a valid number muck"),
-            IStrError::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
-            IStrError::Boxed(error) => error.fmt(f),
+            ErrorKind::NotInteger(n) => write!(f, "not an integer or integer overflow `{n}`"),
+            ErrorKind::NotFloat(n) => write!(f, "not a float `{n}`"),
+            ErrorKind::NotUtf8 => write!(f, "not utf-8"),
+            ErrorKind::BadArray => write!(f, "bad array"),
+            ErrorKind::ExpectedChar => write!(f, "exptected charater"),
+            ErrorKind::ExpectedLine => write!(f, "bad line"),
+            ErrorKind::UnexpectedEof => write!(f, "unexpected eof"),
+            ErrorKind::ExpectedTuple(n) => write!(f, "expected tuple of length `{n}`"),
+            ErrorKind::NotByteMuck => write!(f, "not a valid number muck"),
+            ErrorKind::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
+            ErrorKind::Boxed(error) => error.fmt(f),
         }
+    }
+}
+
+/// Error raised through string processing.
+#[derive(Debug)]
+pub struct IStrError {
+    pub(crate) index: usize,
+    pub(crate) kind: ErrorKind,
+}
+
+impl IStrError {
+    /// Construct a new input error.
+    pub fn new(index: usize, kind: ErrorKind) -> Self {
+        Self { index, kind }
+    }
+}
+
+impl fmt::Display for IStrError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} (at #{})", self.kind, self.index)
     }
 }
 
@@ -55,24 +75,7 @@ impl std::error::Error for IStrError {}
 
 impl From<anyhow::Error> for IStrError {
     fn from(error: anyhow::Error) -> Self {
-        IStrError::Boxed(error)
-    }
-}
-
-/// A line and column combination.
-#[derive(Default, Debug, Clone, Copy)]
-pub struct LineCol {
-    line: usize,
-    column: usize,
-}
-
-impl LineCol {
-    const EMPTY: Self = Self { line: 0, column: 0 };
-}
-
-impl fmt::Display for LineCol {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line + 1, self.column)
+        IStrError::new(0, ErrorKind::Boxed(error))
     }
 }
 
@@ -81,19 +84,20 @@ impl fmt::Display for LineCol {
 pub struct IStr {
     /// The path being parsed.
     data: &'static [u8],
+    index: usize,
 }
 
 impl IStr {
     /// Construct a new input processor.
     #[doc(hidden)]
-    pub fn new(data: &'static [u8]) -> Self {
-        Self { data }
+    pub fn new(data: &'static [u8], index: usize) -> Self {
+        Self { data, index }
     }
 
-    /// Cosntruct an iterator over the current input.
+    /// Access index of input string.
     #[inline]
-    pub fn iter<T>(&mut self) -> Iter<'_, T> {
-        Iter::new(self)
+    pub fn index(&self) -> usize {
+        self.index
     }
 
     /// Test if input is empty.
@@ -119,6 +123,12 @@ impl IStr {
         BStr::new(self.as_data())
     }
 
+    /// Cosntruct an iterator over the current input.
+    #[inline]
+    pub fn iter<T>(&mut self) -> Iter<'_, T> {
+        Iter::new(self)
+    }
+
     /// Split `N` times.
     #[inline]
     pub fn splitn(&mut self, byte: u8) -> impl InputIterator + '_ {
@@ -134,27 +144,6 @@ impl IStr {
             fn next(&mut self) -> Option<IStr> {
                 self.input.split_once(self.byte)
             }
-        }
-    }
-
-    /// Get the current input position based on the given index.
-    pub fn pos_from(&self, original: &[u8]) -> LineCol {
-        let index = original.len().saturating_sub(self.len());
-
-        let Some(data) = original.get(..=index) else {
-            return LineCol::EMPTY;
-        };
-
-        let it = memchr::memchr_iter(NL, data);
-        let (line, last) = it
-            .enumerate()
-            .last()
-            .map(|(line, n)| (line + 1, n))
-            .unwrap_or_default();
-
-        LineCol {
-            line,
-            column: data.get(last.saturating_add(1)..).unwrap_or_default().len(),
         }
     }
 
@@ -185,8 +174,10 @@ impl IStr {
     where
         T: FromInput,
     {
+        let index = self.index;
+
         let Some(line) = self.try_line()? else {
-            return Err(IStrError::ExpectedLine);
+            return Err(IStrError::new(index, ErrorKind::ExpectedLine));
         };
 
         Ok(line)
@@ -217,6 +208,47 @@ impl IStr {
         Ok(n)
     }
 
+    /// Try to parse the next word.
+    pub fn try_next_word<T>(&mut self) -> Result<Option<(usize, usize, T)>>
+    where
+        T: FromInput,
+    {
+        let mut n = 0;
+
+        while let Some(c) = self.at(n) {
+            if !(c.is_ascii_whitespace() || c.is_ascii_control()) {
+                break;
+            }
+
+            n = n.saturating_add(1);
+        }
+
+        let s = n;
+
+        while let Some(c) = self.at(n) {
+            if c.is_ascii_whitespace() || c.is_ascii_control() {
+                break;
+            }
+
+            n = n.saturating_add(1);
+        }
+
+        if s == n {
+            return Ok(None);
+        }
+
+        let Some(mut input) = self.slice(s..n) else {
+            return Ok(None);
+        };
+
+        let Some(value) = T::try_from_input(&mut input)? else {
+            return Ok(None);
+        };
+
+        self.advance(n);
+        Ok(Some((s, n, value)))
+    }
+
     /// Split once at the given byte or until the end of string, returning the new IStr associated with the split.
     #[inline]
     fn split_once(&mut self, b: u8) -> Option<IStr> {
@@ -225,13 +257,16 @@ impl IStr {
         }
 
         let Some(at) = memchr::memchr(b, self.data) else {
+            self.index = self.index.checked_add(self.data.len())?;
             let data = mem::take(&mut self.data);
-            return Some(IStr::new(data));
+            return Some(IStr::new(data, self.index));
         };
 
         let data = self.data.get(..at)?;
-        self.advance(at.checked_add(1)?);
-        Some(IStr::new(data))
+        let n = at.checked_add(1)?;
+        let index = self.index.checked_add(n)?;
+        self.advance(n);
+        Some(IStr::new(data, index))
     }
 
     /// Get the byte at the given reader offset.
@@ -239,22 +274,20 @@ impl IStr {
         self.data.get(n).copied()
     }
 
-    /// Get the byte at the given reader offset.
-    #[inline]
-    fn peek(&self) -> Option<u8> {
-        self.at(0)
-    }
-
     #[inline]
     fn advance(&mut self, n: usize) {
         self.data = self.data.get(n..).unwrap_or_default();
+        self.index = self.index.saturating_add(n);
     }
 
     /// Construct a sub-range.
     #[inline]
     fn slice(&self, range: ops::Range<usize>) -> Option<IStr> {
+        let index = self.index.checked_add(range.start)?;
+
         Some(Self {
             data: self.data.get(range)?,
+            index,
         })
     }
 }
@@ -263,8 +296,8 @@ impl IStr {
 pub trait FromInput: Sized {
     /// Custom error kind to use.
     #[inline]
-    fn error_kind() -> IStrError {
-        IStrError::UnexpectedEof
+    fn error_kind() -> ErrorKind {
+        ErrorKind::UnexpectedEof
     }
 
     /// Optionally try to confuse input ignoring leading whitespace by default.
@@ -272,8 +305,10 @@ pub trait FromInput: Sized {
 
     /// Parse a value from a given input.
     fn from_input(p: &mut IStr) -> Result<Self> {
+        let index = p.index;
+
         let Some(value) = Self::try_from_input(p)? else {
-            return Err(Self::error_kind());
+            return Err(IStrError::new(index, Self::error_kind()));
         };
 
         Ok(value)
@@ -289,7 +324,7 @@ pub trait InputIterator {
 /// Parse something from a pair of inputs.
 pub trait FromInputIter: Sized {
     /// Optionally try to confuse input ignoring leading whitespace by default.
-    fn from_input_iter<I>(inputs: I) -> Result<Option<Self>>
+    fn from_input_iter<I>(index: usize, inputs: I) -> Result<Option<Self>>
     where
         I: InputIterator;
 }
@@ -302,8 +337,8 @@ macro_rules! tuple {
             $($rest: FromInput,)*
         {
             #[inline]
-            fn error_kind() -> IStrError {
-                IStrError::ExpectedTuple($num)
+            fn error_kind() -> ErrorKind {
+                ErrorKind::ExpectedTuple($num)
             }
 
             #[inline]
@@ -328,7 +363,7 @@ macro_rules! tuple {
             $($rest: FromInput,)*
         {
             #[inline]
-            fn from_input_iter<I>(mut inputs: I) -> Result<Option<Self>>
+            fn from_input_iter<I>(_: usize, mut inputs: I) -> Result<Option<Self>>
             where
                 I: InputIterator
             {
@@ -364,12 +399,14 @@ macro_rules! integer {
         impl FromInput for $ty {
             #[inline]
             fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-                let Some(W(string)) = <W<&str>>::try_from_input(p)? else {
+                let index = p.index;
+
+                let Some((n, _, string)) = p.try_next_word()? else {
                     return Ok(None);
                 };
 
                 let Ok(n) = str::parse(string) else {
-                    return Err(IStrError::$error(string));
+                    return Err(IStrError::new(index.saturating_add(n), ErrorKind::$error(string)));
                 };
 
                 Ok(Some(n))
@@ -404,8 +441,8 @@ integer!(num_bigint::BigUint, NotInteger);
 
 impl FromInput for char {
     #[inline]
-    fn error_kind() -> IStrError {
-        IStrError::ExpectedChar
+    fn error_kind() -> ErrorKind {
+        ErrorKind::ExpectedChar
     }
 
     #[inline]
@@ -438,12 +475,14 @@ impl FromInput for &[u8] {
 impl FromInput for &str {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
+        let index = p.index;
+
         let Some(data) = <&[u8]>::try_from_input(p)? else {
             return Ok(None);
         };
 
         let Ok(data) = from_utf8(data) else {
-            return Err(IStrError::NotUtf8);
+            return Err(IStrError::new(index, ErrorKind::NotUtf8));
         };
 
         Ok(Some(data))
@@ -470,12 +509,8 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        if p.peek().is_none() {
-            return Ok(None);
-        }
-
         let Some(mut input) = p.split_once(NL) else {
-            return Err(IStrError::ExpectedLine);
+            return Ok(None);
         };
 
         Ok(Some(Self(input.next()?)))
@@ -517,7 +552,7 @@ where
 
         while let Some(element) = T::try_from_input(p)? {
             if output.remaining_capacity() == 0 {
-                return Err(IStrError::ArrayCapacity(N));
+                return Err(IStrError::new(p.index, ErrorKind::ArrayCapacity(N)));
             }
 
             output.push(element);
@@ -553,9 +588,10 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
+        let index = p.index;
         let it = p.splitn(D as u8);
 
-        let Some(out) = T::from_input_iter(it)? else {
+        let Some(out) = T::from_input_iter(index, it)? else {
             return Ok(None);
         };
 
@@ -586,7 +622,7 @@ where
     T: FromInput,
 {
     #[inline]
-    fn from_input_iter<I>(mut inputs: I) -> Result<Option<Self>>
+    fn from_input_iter<I>(index: usize, mut inputs: I) -> Result<Option<Self>>
     where
         I: InputIterator,
     {
@@ -605,7 +641,7 @@ where
         }
 
         let Ok(value) = vec.into_inner() else {
-            return Err(IStrError::BadArray);
+            return Err(IStrError::new(index, ErrorKind::BadArray));
         };
 
         Ok(Some(value))
@@ -631,39 +667,10 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        let mut n = 0;
-
-        while let Some(c) = p.at(n) {
-            if !(c.is_ascii_whitespace() || c.is_ascii_control()) {
-                break;
-            }
-
-            n = n.saturating_add(1);
-        }
-
-        let s = n;
-
-        while let Some(c) = p.at(n) {
-            if c.is_ascii_whitespace() || c.is_ascii_control() {
-                break;
-            }
-
-            n = n.saturating_add(1);
-        }
-
-        if s == n {
-            return Ok(None);
-        }
-
-        let Some(mut input) = p.slice(s..n) else {
+        let Some((_, _, value)) = p.try_next_word()? else {
             return Ok(None);
         };
 
-        let Some(value) = T::try_from_input(&mut input)? else {
-            return Ok(None);
-        };
-
-        p.advance(n);
         Ok(Some(Self(value)))
     }
 }
