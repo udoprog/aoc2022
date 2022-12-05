@@ -106,13 +106,10 @@ impl Opts {
             }
         }
 
-        match &opts.mode {
-            Mode::Default => {
-                log::set_max_level(log::LevelFilter::Info);
-                log::set_logger(&STDOUT_LOGGER)
-                    .map_err(|error| anyhow!("failed to set log: {error}"))?;
-            }
-            _ => {}
+        if !opts.json {
+            log::set_max_level(log::LevelFilter::Info);
+            log::set_logger(&STDOUT_LOGGER)
+                .map_err(|error| anyhow!("failed to set log: {error}"))?;
         }
 
         Ok(opts)

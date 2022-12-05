@@ -7,8 +7,7 @@ use anyhow::{bail, Context, Result};
 use lib::cli::Report;
 use serde::{de::IntoDeserializer, Deserialize};
 
-/// Default project.
-const DEFAULT_PROJECT: &str = "y2022";
+const LIB_NAME: &str = env!("CARGO_CRATE_NAME");
 
 #[derive(Debug, Deserialize)]
 struct Target {
@@ -119,7 +118,9 @@ fn main() -> Result<ExitCode> {
         let output = serde_json::Deserializer::from_reader(output).into_iter();
 
         for value in output {
-            let value: serde_json::Value = value?;
+            let Ok(value): Result<serde_json::Value, _> = value else {
+                continue;
+            };
 
             match value.get("type").and_then(|d| d.as_str()) {
                 Some("report") => {
@@ -173,8 +174,6 @@ fn main() -> Result<ExitCode> {
 
 /// Build the project and return status.
 fn build_project(opts: &Opts) -> Result<(Vec<Executable>, ExitStatus)> {
-    let project = opts.project.as_deref().unwrap_or(DEFAULT_PROJECT);
-
     let mut cmd = Command::new("cargo");
     cmd.stdout(Stdio::piped());
     cmd.arg("build");
@@ -187,7 +186,12 @@ fn build_project(opts: &Opts) -> Result<(Vec<Executable>, ExitStatus)> {
         cmd.env("RUSTFLAGS", "--cfg prod");
     }
 
-    cmd.args(["-p", project]);
+    if let Some(project) = &opts.project {
+        cmd.args(&["-p", project.as_str()]);
+    } else {
+        cmd.arg("--all");
+    }
+
     cmd.args(["--message-format", "json"]);
 
     let mut child = cmd.spawn()?;
@@ -216,6 +220,11 @@ fn build_project(opts: &Opts) -> Result<(Vec<Executable>, ExitStatus)> {
         }
 
         let path = artifact.executable.context("missing executable")?;
+
+        // Skip over self.
+        if artifact.target.name == LIB_NAME {
+            continue;
+        }
 
         executables.push(Executable {
             name: artifact.target.name,
