@@ -8,10 +8,16 @@ fn main(mut input: Input) -> Result<(ArrayString, ArrayString)> {
         for (n, chunk) in line.as_bytes().chunks(4).enumerate() {
             if let Some(&d) = chunk.get(1).filter(|d| matches!(d, b'A'..=b'Z')) {
                 for _ in stacks1.len()..=n {
-                    stacks1.push(ArrayVec::new());
+                    stacks1
+                        .try_push(ArrayVec::new())
+                        .ok()
+                        .context("stacks capacity")?;
                 }
 
-                stacks1[n].push(d);
+                stacks1
+                    .get_mut(n)
+                    .and_then(|s| s.try_push(d).ok())
+                    .context("capacity")?;
             }
         }
     }
@@ -50,7 +56,7 @@ fn main(mut input: Input) -> Result<(ArrayString, ArrayString)> {
 
 fn do_move<const N: usize, T>(stacks: &mut [ArrayVec<T, N>], from: usize, to: usize) -> Option<()> {
     let d = stacks.get_mut(from)?.pop()?;
-    stacks.get_mut(to)?.push(d);
+    stacks.get_mut(to)?.try_push(d).ok()?;
     Some(())
 }
 
