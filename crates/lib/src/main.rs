@@ -101,11 +101,13 @@ fn main() -> Result<ExitCode> {
         bail!("no executables!");
     }
 
-    let mut totals = Vec::new();
+    let mut reports = Vec::new();
     let mut all = ExitCode::SUCCESS;
 
     for e in executables {
-        println!("Running: {}", e.name);
+        if opts.verbose {
+            println!("Running: {}", e.name);
+        }
 
         let mut cmd = Command::new(e.path);
         cmd.stdout(Stdio::piped());
@@ -122,7 +124,8 @@ fn main() -> Result<ExitCode> {
             match value.get("type").and_then(|d| d.as_str()) {
                 Some("report") => {
                     let report = Data::<Report>::deserialize(value.into_deserializer())?.data;
-                    totals.push((e.name.clone(), report));
+                    println!("{name}: {report}", name = e.name);
+                    reports.push(report);
                 }
                 Some("message") => {
                     let message = Data::<Message>::deserialize(value.into_deserializer())?.data;
@@ -151,12 +154,11 @@ fn main() -> Result<ExitCode> {
         }
     }
 
-    if !totals.is_empty() {
+    if !reports.is_empty() {
         let mut total = Report::default();
 
-        for (name, t) in &totals {
+        for t in &reports {
             total += t;
-            println!("{name}: {t}");
         }
 
         println!("all: {total}");

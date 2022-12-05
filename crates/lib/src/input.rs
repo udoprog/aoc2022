@@ -160,25 +160,8 @@ impl IStr {
     where
         T: FromInput,
     {
-        let mut n = 0;
-
-        while let Some(c) = self.at(n) {
-            if !(c.is_ascii_whitespace() || c.is_ascii_control()) {
-                break;
-            }
-
-            n = n.saturating_add(1);
-        }
-
-        let s = n;
-
-        while let Some(c) = self.at(n) {
-            if c.is_ascii_whitespace() || c.is_ascii_control() {
-                break;
-            }
-
-            n = n.saturating_add(1);
-        }
+        let s = self.find(0, |b| !u8::is_ascii_whitespace(b));
+        let n = self.find(s, u8::is_ascii_whitespace);
 
         if s == n {
             return Ok(None);
@@ -196,14 +179,15 @@ impl IStr {
         Ok(Some((Size::new(s), value)))
     }
 
-    /// Split once at the given byte or until the end of string, returning the new IStr associated with the split.
-    #[inline]
-    fn split_once(&mut self, b: u8) -> Option<IStr> {
+    fn split_once_at<T>(&mut self, find: T) -> Option<IStr>
+    where
+        T: FnOnce(&[u8]) -> Option<usize>,
+    {
         if self.data.is_empty() {
             return None;
         }
 
-        let Some(at) = memchr::memchr(b, self.data) else {
+        let Some(at) = find(self.data) else {
             self.index.advance(self.data.len());
             let data = mem::take(&mut self.data);
             return Some(IStr::new(data, self.index));
@@ -216,10 +200,23 @@ impl IStr {
         Some(IStr::new(data, index))
     }
 
-    /// Get the byte at the given reader offset.
+    /// Split once at the given byte or until the end of string, returning the new IStr associated with the split.
     #[inline]
-    fn at(&self, n: usize) -> Option<u8> {
-        self.data.get(n).copied()
+    fn split_once(&mut self, b: u8) -> Option<IStr> {
+        self.split_once_at(|data| memchr::memchr(b, data))
+    }
+
+    /// Find by predicate.
+    fn find(&self, mut n: usize, p: fn(&u8) -> bool) -> usize {
+        while let Some(c) = self.data.get(n) {
+            if p(c) {
+                break;
+            }
+
+            n += 1;
+        }
+
+        n
     }
 
     #[inline]
@@ -475,14 +472,10 @@ pub struct Ws(pub usize);
 impl FromInput for Ws {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        let mut n = 0;
+        let n = p.find(0, |b| !b.is_ascii_whitespace());
 
-        while let Some(c) = p.at(n) {
-            if !c.is_ascii_whitespace() || !c.is_ascii_control() {
-                break;
-            }
-
-            n = n.saturating_add(1);
+        if n == 0 {
+            return Ok(Some(Self(0)));
         }
 
         let Some(data) = p.data.get(..n) else {
