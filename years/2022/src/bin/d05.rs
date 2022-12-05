@@ -1,7 +1,7 @@
 use lib::prelude::*;
 
 #[entry(input = "d05.txt", expect = ("RFFFWBPNS", "CQQBBJFCS"))]
-fn main(input: &mut IStr) -> Result<(ArrayString, ArrayString)> {
+fn main(mut input: IStr) -> Result<(ArrayString, ArrayString)> {
     let mut stacks1 = ArrayVec::<ArrayVec<_, 128>, 10>::new();
 
     while let Some(line) = input.try_line::<IStr>()?.filter(|s| !s.is_empty()) {

@@ -1,8 +1,8 @@
 use lib::prelude::*;
 
 #[entry(input = "d03.txt", expect = (8233, 2821))]
-fn main(input: &mut IStr) -> Result<(u32, u32)> {
-    let original = input.clone();
+fn main(mut input: IStr) -> Result<(u32, u32)> {
+    let mut input2 = input;
 
     let mut part1 = 0;
     let mut part2 = 0;
@@ -12,10 +12,7 @@ fn main(input: &mut IStr) -> Result<(u32, u32)> {
         part1 += (set(first) & set(second)).trailing_zeros();
     }
 
-    // Reset input.
-    *input = original;
-
-    while let Some((S(a), S(b), S(c))) = input.try_next::<(S, S, S)>()? {
+    while let Some((S(a), S(b), S(c))) = input2.try_next::<(S, S, S)>()? {
         part2 += (a & b & c).trailing_zeros();
     }
 
