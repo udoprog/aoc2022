@@ -2,7 +2,8 @@ use core::convert::Infallible;
 use core::fmt;
 use std::ops::Range;
 
-use crate::input::{ErrorKind, IStrError, NL};
+use crate::env::Size;
+use crate::input::{ErrorKind, IStrError};
 
 /// A line and column combination.
 #[derive(Default, Debug, Clone, Copy)]
@@ -13,11 +14,11 @@ pub struct LineCol {
 }
 
 impl LineCol {
-    const EMPTY: Self = Self {
-        line: 0,
-        start: 0,
-        end: 0,
-    };
+    pub(crate) const EMPTY: Self = Self::new(0, 0, 0);
+
+    pub(crate) const fn new(line: usize, start: usize, end: usize) -> Self {
+        Self { line, start, end }
+    }
 }
 
 impl fmt::Display for LineCol {
@@ -28,37 +29,11 @@ impl fmt::Display for LineCol {
 
 /// Need to be able to unwrap an error fully in case it's threaded through
 /// multiple layers of processing.
-fn find_cause(error: anyhow::Error) -> (ErrorKind, Range<usize>) {
+fn find_cause(error: anyhow::Error) -> (ErrorKind, Range<Size>) {
     match error.downcast::<IStrError>() {
         Ok(e) => (e.kind, e.span),
-        Err(e) => (ErrorKind::Boxed(e), 0..0),
+        Err(e) => (ErrorKind::Boxed(e), Size::ZERO..Size::ZERO),
     }
-}
-
-/// Get the current input position based on the given index.
-pub fn pos_from(data: &[u8], span: Range<usize>) -> LineCol {
-    let Some(d) = data.get(..=span.start) else {
-        return LineCol::EMPTY;
-    };
-
-    let it = memchr::memchr_iter(NL, d);
-
-    let (line, last) = it
-        .enumerate()
-        .last()
-        .map(|(line, n)| (line + 1, n))
-        .unwrap_or_default();
-
-    let start = d.get(last.saturating_add(1)..).unwrap_or_default().len();
-
-    let end = if let Some(end) = data.get(span) {
-        let len = memchr::memchr(NL, end).unwrap_or(end.len());
-        start.saturating_add(len)
-    } else {
-        start
-    };
-
-    LineCol { line, start, end }
 }
 
 /// Various forms of input errors.
@@ -70,27 +45,12 @@ pub struct CliError {
 }
 
 impl CliError {
-    /// Construct a new input error from anyhow.
-    pub fn anyhow(path: &'static str, pos: LineCol, error: anyhow::Error) -> Self {
-        Self {
-            path,
-            pos,
-            kind: ErrorKind::Boxed(error),
-        }
-    }
-
+    /// Constructor used in macros.
+    #[doc(hidden)]
     pub fn cli(path: &'static str, data: &'static [u8], error: anyhow::Error) -> Self {
         let (kind, span) = find_cause(error);
-        let pos = pos_from(data, span);
+        let pos = crate::env::pos_from(data, span);
 
-        Self {
-            path,
-            pos,
-            kind: kind.into(),
-        }
-    }
-
-    pub fn new(path: &'static str, pos: LineCol, kind: impl Into<ErrorKind>) -> Self {
         Self {
             path,
             pos,

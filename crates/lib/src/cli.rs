@@ -1,6 +1,6 @@
 //! CLI helpers.
 
-mod error;
+pub(crate) mod error;
 mod output_eq;
 mod stdout_logger;
 

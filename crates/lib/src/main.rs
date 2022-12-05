@@ -32,6 +32,7 @@ struct Opts {
     quiet: bool,
     verbose: bool,
     release: bool,
+    no_prod: bool,
     project: Option<String>,
     args: Vec<OsString>,
     names: HashSet<String>,
@@ -61,6 +62,9 @@ impl Opts {
                 }
                 "--release" => {
                     opts.release = true;
+                }
+                "--no-prod" => {
+                    opts.no_prod = true;
                 }
                 "--" => {
                     break;
@@ -175,6 +179,10 @@ fn build_project(opts: &Opts) -> Result<(Vec<Executable>, ExitStatus)> {
 
     if opts.release {
         cmd.arg("--release");
+    }
+
+    if opts.release && !opts.no_prod {
+        cmd.env("RUSTFLAGS", "--cfg prod");
     }
 
     cmd.args(["-p", project]);

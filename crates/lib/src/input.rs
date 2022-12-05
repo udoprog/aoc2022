@@ -13,6 +13,7 @@ use bstr::BStr;
 pub use self::iter::Iter;
 
 pub(self) type Result<T> = std::result::Result<T, IStrError>;
+use crate::env::Size;
 
 pub(crate) const NL: u8 = b'\n';
 
@@ -53,18 +54,20 @@ impl fmt::Display for ErrorKind {
 /// Error raised through string processing.
 #[derive(Debug)]
 pub struct IStrError {
-    pub(crate) span: ops::Range<usize>,
+    pub(crate) span: ops::Range<Size>,
     pub(crate) kind: ErrorKind,
 }
 
 impl IStrError {
     /// Construct a new input error.
-    pub fn new(span: ops::Range<usize>, kind: ErrorKind) -> Self {
+    #[inline]
+    pub fn new(span: ops::Range<Size>, kind: ErrorKind) -> Self {
         Self { span, kind }
     }
 }
 
 impl fmt::Display for IStrError {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} (at {:?})", self.kind, self.span)
     }
@@ -74,8 +77,9 @@ impl fmt::Display for IStrError {
 impl std::error::Error for IStrError {}
 
 impl From<anyhow::Error> for IStrError {
+    #[inline]
     fn from(error: anyhow::Error) -> Self {
-        IStrError::new(0..0, ErrorKind::Boxed(error))
+        IStrError::new(Size::ZERO..Size::ZERO, ErrorKind::Boxed(error))
     }
 }
 
@@ -84,19 +88,20 @@ impl From<anyhow::Error> for IStrError {
 pub struct IStr {
     /// The path being parsed.
     data: &'static [u8],
-    index: usize,
+    /// Size of index being used.
+    index: Size,
 }
 
 impl IStr {
     /// Construct a new input processor.
-    #[doc(hidden)]
-    pub fn new(data: &'static [u8], index: usize) -> Self {
+    #[inline]
+    pub fn new(data: &'static [u8], index: Size) -> Self {
         Self { data, index }
     }
 
     /// Access index of input string.
     #[inline]
-    pub fn index(&self) -> usize {
+    pub fn index(&self) -> Size {
         self.index
     }
 
@@ -119,6 +124,7 @@ impl IStr {
     }
 
     /// Get remaining binary string of the input.
+    #[inline]
     pub fn as_bstr(&self) -> &BStr {
         BStr::new(self.as_data())
     }
@@ -141,7 +147,7 @@ impl IStr {
 
         impl<'a> InputIterator for Iterator<'a> {
             #[inline]
-            fn index(&self) -> usize {
+            fn index(&self) -> Size {
                 self.input.index
             }
 
@@ -208,13 +214,14 @@ impl IStr {
     }
 
     /// Shorthand for using [Ws] to scan newlines.
+    #[inline]
     pub fn ws(&mut self) -> Result<usize> {
         let Ws(n) = self.next::<Ws>()?;
         Ok(n)
     }
 
     /// Try to parse the next word.
-    pub fn try_next_word<T>(&mut self) -> Result<Option<(usize, usize, T)>>
+    pub fn try_next_word<T>(&mut self) -> Result<Option<(Size, T)>>
     where
         T: FromInput,
     {
@@ -251,7 +258,7 @@ impl IStr {
         };
 
         self.advance(n);
-        Ok(Some((s, n, value)))
+        Ok(Some((Size::new(s), value)))
     }
 
     /// Split once at the given byte or until the end of string, returning the new IStr associated with the split.
@@ -262,19 +269,20 @@ impl IStr {
         }
 
         let Some(at) = memchr::memchr(b, self.data) else {
-            self.index = self.index.checked_add(self.data.len())?;
+            self.index.advance(self.data.len());
             let data = mem::take(&mut self.data);
             return Some(IStr::new(data, self.index));
         };
 
         let data = self.data.get(..at)?;
         let n = at.checked_add(1)?;
-        let index = self.index.checked_add(n)?;
+        let index = self.index.checked_add(Size::new(n))?;
         self.advance(n);
         Some(IStr::new(data, index))
     }
 
     /// Get the byte at the given reader offset.
+    #[inline]
     fn at(&self, n: usize) -> Option<u8> {
         self.data.get(n).copied()
     }
@@ -282,13 +290,13 @@ impl IStr {
     #[inline]
     fn advance(&mut self, n: usize) {
         self.data = self.data.get(n..).unwrap_or_default();
-        self.index = self.index.saturating_add(n);
+        self.index = self.index.saturating_add(Size::new(n));
     }
 
     /// Construct a sub-range.
     #[inline]
     fn slice(&self, range: ops::Range<usize>) -> Option<IStr> {
-        let index = self.index.checked_add(range.start)?;
+        let index = self.index.checked_add(Size::new(range.start))?;
 
         Some(Self {
             data: self.data.get(range)?,
@@ -309,6 +317,7 @@ pub trait FromInput: Sized {
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>>;
 
     /// Parse a value from a given input.
+    #[inline]
     fn from_input(p: &mut IStr) -> Result<Self> {
         let index = p.index;
 
@@ -323,7 +332,7 @@ pub trait FromInput: Sized {
 /// Iterator over inputs.
 pub trait InputIterator {
     /// Current index of the input iterator.
-    fn index(&self) -> usize;
+    fn index(&self) -> Size;
 
     /// Get next input.
     fn next(&mut self) -> Option<IStr>;
@@ -332,7 +341,7 @@ pub trait InputIterator {
 /// Parse something from a pair of inputs.
 pub trait FromInputIter: Sized {
     /// Optionally try to confuse input ignoring leading whitespace by default.
-    fn from_input_iter<I>(index: usize, inputs: I) -> Result<Option<Self>>
+    fn from_input_iter<I>(index: Size, inputs: I) -> Result<Option<Self>>
     where
         I: InputIterator;
 }
@@ -371,7 +380,7 @@ macro_rules! tuple {
             $($rest: FromInput,)*
         {
             #[inline]
-            fn from_input_iter<I>(_: usize, mut inputs: I) -> Result<Option<Self>>
+            fn from_input_iter<I>(_: Size, mut inputs: I) -> Result<Option<Self>>
             where
                 I: InputIterator
             {
@@ -409,7 +418,7 @@ macro_rules! integer {
             fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
                 let index = p.index;
 
-                let Some((n, _, string)) = p.try_next_word()? else {
+                let Some((n, string)) = p.try_next_word()? else {
                     return Ok(None);
                 };
 
@@ -631,7 +640,7 @@ where
     T: FromInput,
 {
     #[inline]
-    fn from_input_iter<I>(index: usize, mut inputs: I) -> Result<Option<Self>>
+    fn from_input_iter<I>(index: Size, mut inputs: I) -> Result<Option<Self>>
     where
         I: InputIterator,
     {
@@ -676,7 +685,7 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        let Some((_, _, value)) = p.try_next_word()? else {
+        let Some((_, value)) = p.try_next_word()? else {
             return Ok(None);
         };
 
