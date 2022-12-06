@@ -125,7 +125,8 @@ fn main() -> Result<ExitCode> {
             match value.get("type").and_then(|d| d.as_str()) {
                 Some("report") => {
                     let report = Data::<Report>::deserialize(value.into_deserializer())?.data;
-                    println!("{name}: {report}", name = e.name);
+                    println!("# {name}", name = e.name);
+                    println!("{report}");
                     reports.push(report);
                 }
                 Some("message") => {
@@ -162,7 +163,8 @@ fn main() -> Result<ExitCode> {
             total += t;
         }
 
-        println!("all: {total}");
+        println!("# totals (each sample added together)");
+        println!("{total}");
     }
 
     if !status.success() {

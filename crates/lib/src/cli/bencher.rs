@@ -4,9 +4,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{bail, Context, Error, Result};
+use anyhow::{bail, Error, Result};
 
 use crate::cli::{Opts, Output, OutputEq, OutputKind, Report};
+
+use super::Percentiles;
 
 /// Default warmup period in seconds.
 const DEFAULT_WARMUP: u64 = 100;
@@ -140,24 +142,17 @@ impl Bencher {
 
         samples.sort();
 
-        let p50 = ((samples.len() as f32) * 0.50) as usize;
-        let p95 = ((samples.len() as f32) * 0.95) as usize;
-        let p99 = ((samples.len() as f32) * 0.99) as usize;
+        let mut percentiles = Percentiles::new();
+        percentiles.insert(2500, &samples);
+        percentiles.insert(5000, &samples);
+        percentiles.insert(9500, &samples);
+        percentiles.insert(9900, &samples);
+        percentiles.insert(9999, &samples);
 
-        let last = samples.last();
-        let p50 = samples.get(p50).or(last);
-        let p95 = samples.get(p95).or(last);
-        let p99 = samples.get(p99).or(last);
-
-        let (Some(&p50), Some(&p95), Some(&p99), Some(count)) = (p50, p95, p99, (!samples.is_empty()).then_some(samples.len())) else {
-            o.error("no samples :(")?;
-            return Ok(());
-        };
-
-        let min = samples.first().copied().context("missing min")?;
-        let max = samples.last().copied().context("missing max")?;
+        let min = samples.first().copied();
+        let max = samples.last().copied();
         let sum = samples.iter().copied().sum();
-        let report = Report::new(p50, p95, p99, count, min, max, sum);
+        let report = Report::new(samples.len(), min, max, sum, percentiles);
         o.report(&report)?;
         Ok(())
     }
