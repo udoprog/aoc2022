@@ -123,22 +123,14 @@ where
 {
     from_fn(move |s| {
         s.write((
-            ("let", "mut", "b"),
+            ("let", "b"),
             '=',
-            (m, "cli", S, "Bencher", S, "new", parens(()), ';'),
+            (m, "cli", S, "Bencher", S, "new", parens(('&', "opts")), ';'),
         ));
 
         s.write((
-            ("b", '.', "iter"),
-            parens((
-                '&',
-                "opts",
-                ',',
-                compare.expect(),
-                ',',
-                ['|', '|'],
-                braced(call),
-            )),
+            ("b", '.', "run"),
+            parens((compare.expect(), ',', ['|', '|'], braced(call))),
             ('?', ';'),
         ));
     })

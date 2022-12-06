@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Context, Error, Result};
 
 use crate::cli::{Opts, Output, OutputEq, OutputKind, Report};
 
@@ -16,19 +16,37 @@ const DEFAULT_WARMUP: u64 = 100;
 /// Default time in seconds.
 const DEFAULT_TIME_LIMIT: u64 = 400;
 
-#[derive(Default)]
-pub struct Bencher {}
+/// At 10 microsecond runtime we need to adjust our timing method.
+const THRESHOLD: u32 = 10_000_000;
+
+pub struct Bencher {
+    iter: Option<usize>,
+    kind: OutputKind,
+    warmup: Duration,
+    time_limit: Duration,
+}
 
 impl Bencher {
     /// Construct a new bencher.
     #[inline]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(opts: &Opts) -> Self {
+        let warmup = Duration::from_millis(opts.warmup.unwrap_or(DEFAULT_WARMUP));
+        let time_limit = Duration::from_millis(opts.time_limit.unwrap_or(DEFAULT_TIME_LIMIT));
+
+        Self {
+            iter: opts.iter,
+            kind: if opts.json {
+                OutputKind::Json
+            } else {
+                OutputKind::Normal
+            },
+            warmup,
+            time_limit,
+        }
     }
 
     /// Bench the given fn.
-    #[inline]
-    pub fn iter<T, O, C, E>(&mut self, opts: &Opts, expected: Option<C>, iter: T) -> Result<()>
+    pub fn run<T, O, C, E>(&self, expected: Option<C>, iter: T) -> Result<()>
     where
         T: FnMut() -> Result<O, E>,
         O: fmt::Debug + OutputEq<C>,
@@ -36,29 +54,20 @@ impl Bencher {
         Error: From<E>,
     {
         let stdout = std::io::stdout();
+        let mut o = Output::new(stdout.lock(), self.kind);
 
-        let mut o = Output::new(
-            stdout.lock(),
-            if opts.json {
-                OutputKind::Json
-            } else {
-                OutputKind::Normal
-            },
-        );
-
-        if let Err(e) = self.inner_iter(&mut o, opts, expected, iter) {
+        if let Err(e) = self.inner_run(&mut o, expected, iter) {
             o.error(e)?;
         }
 
         Ok(())
     }
 
-    fn inner_iter<T, O, C, E>(
-        &mut self,
+    fn inner_run<T, O, C, E>(
+        &self,
         o: &mut Output<impl Write>,
-        opts: &Opts,
         expected: Option<C>,
-        mut iter: T,
+        mut f: T,
     ) -> Result<()>
     where
         T: FnMut() -> Result<O, E>,
@@ -66,27 +75,40 @@ impl Bencher {
         C: fmt::Debug,
         Error: From<E>,
     {
-        let warmup = Duration::from_millis(opts.warmup.unwrap_or(DEFAULT_WARMUP));
-        let time_limit = Duration::from_millis(opts.time_limit.unwrap_or(DEFAULT_TIME_LIMIT));
+        let before = Instant::now();
+        let value = f()?;
 
-        if !warmup.is_zero() {
-            let s = Instant::now();
+        // run once to check against expected.
+        if let Some(expect) = &expected {
+            if !value.output_eq(expect) {
+                bail!("{value:?} (value) != {expect:?} (expected)");
+            }
+        }
 
-            o.info(format_args!("warming up ({warmup:?})..."))?;
+        let _ = black_box(value);
+
+        let iter = match self.iter {
+            Some(iter) => iter,
+            None => {
+                let duration = before.elapsed();
+
+                if duration.as_secs() == 0 && duration.subsec_nanos() <= THRESHOLD {
+                    (THRESHOLD / duration.subsec_nanos()) as usize
+                } else {
+                    1
+                }
+            }
+        };
+
+        if !self.warmup.is_zero() {
+            let start = Instant::now();
+
+            o.info(format_args!("warming up ({:?})...", self.warmup))?;
 
             loop {
-                let value = iter()?;
-                let after = Instant::now();
+                black_box(f()?);
 
-                if let Some(expect) = &expected {
-                    if !value.output_eq(expect) {
-                        bail!("{value:?} (value) != {expect:?} (expected)");
-                    }
-                }
-
-                let _ = black_box(value);
-
-                if after.duration_since(s) >= warmup {
+                if start.elapsed() >= self.warmup {
                     break;
                 }
             }
@@ -94,65 +116,43 @@ impl Bencher {
 
         let mut samples = Vec::new();
 
-        if let Some(count) = opts.count {
-            let count = count.max(1);
-            o.info(format_args!(
-                "running benches {times} time(s)...",
-                times = count
-            ))?;
+        o.info(format_args!("running benches ({:?})...", self.time_limit))?;
 
-            for _ in 0..count {
-                let before = Instant::now();
-                let value = iter()?;
-                let after = Instant::now();
+        let start = Instant::now();
 
-                if let Some(expect) = &expected {
-                    if !value.output_eq(expect) {
-                        bail!("{value:?} (value) != {expect:?} (expected)");
-                    }
-                }
+        loop {
+            let before = Instant::now();
 
-                let _ = black_box(value);
-                samples.push(after.duration_since(before));
+            for _ in 0..iter {
+                black_box(f()?);
             }
-        } else {
-            o.info(format_args!("running benches ({time_limit:?})..."))?;
 
-            let start = Instant::now();
+            let now = Instant::now();
+            samples.push(now.duration_since(before));
 
-            loop {
-                let before = Instant::now();
-                let value = iter()?;
-                let after = Instant::now();
-
-                if let Some(expect) = &expected {
-                    if !value.output_eq(expect) {
-                        bail!("{value:?} (value) != {expect:?} (expected)");
-                    }
-                }
-
-                let _ = black_box(value);
-                samples.push(after.duration_since(before));
-
-                if after.duration_since(start) >= time_limit {
-                    break;
-                }
+            if now.duration_since(start) >= self.time_limit {
+                break;
             }
         }
 
         samples.sort();
+
+        let sum = samples.iter().copied().sum::<Duration>();
+
+        for sample in &mut samples {
+            *sample = sample.checked_div(iter as u32).context("zero division")?;
+        }
 
         let mut percentiles = Percentiles::new();
         percentiles.insert(2500, &samples);
         percentiles.insert(5000, &samples);
         percentiles.insert(9500, &samples);
         percentiles.insert(9900, &samples);
-        percentiles.insert(9999, &samples);
 
         let min = samples.first().copied();
         let max = samples.last().copied();
-        let sum = samples.iter().copied().sum();
-        let report = Report::new(samples.len(), min, max, sum, percentiles);
+
+        let report = Report::new(samples.len() * iter, min, max, sum, percentiles);
         o.report(&report)?;
         Ok(())
     }
