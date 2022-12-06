@@ -34,7 +34,9 @@ impl Size {
 
 impl fmt::Debug for Size {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {}
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Ok(())
+    }
 }
 
 pub fn pos_from(_: &[u8], _: Range<Size>) -> LineCol {

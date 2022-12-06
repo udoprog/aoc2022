@@ -8,16 +8,10 @@ fn main(mut input: IStr) -> Result<(ArrayString, ArrayString)> {
         for (n, chunk) in line.as_bstr().chunks(4).enumerate() {
             if let Some(&d) = chunk.get(1).filter(|d| matches!(d, b'A'..=b'Z')) {
                 for _ in stacks1.len()..=n {
-                    stacks1
-                        .try_push(ArrayVec::new())
-                        .ok()
-                        .context("stacks capacity")?;
+                    stacks1.try_push(ArrayVec::new())?;
                 }
 
-                stacks1
-                    .get_mut(n)
-                    .and_then(|s| s.try_push(d).ok())
-                    .context("capacity")?;
+                stacks1[n].try_push(d)?;
             }
         }
     }
@@ -51,12 +45,12 @@ fn main(mut input: IStr) -> Result<(ArrayString, ArrayString)> {
     let mut part2 = ArrayString::new();
 
     for (s1, s2) in stacks1.into_iter().zip(stacks2.into_iter()) {
-        if let Some(d) = s1.last().copied() {
-            part1.push(d as char);
+        if let Some(d) = s1.last() {
+            part1.push(*d as char);
         }
 
-        if let Some(d) = s2.last().copied() {
-            part2.push(d as char);
+        if let Some(d) = s2.last() {
+            part2.push(*d as char);
         }
     }
 

@@ -672,3 +672,18 @@ where
         Ok(T::try_from_input(p)?.map(Self))
     }
 }
+
+/// Read a single byte.
+pub struct B(pub u8);
+
+impl FromInput for B {
+    #[inline]
+    fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
+        let Some(&b) = p.data.get(0) else {
+            return Ok(None);
+        };
+
+        p.advance(1);
+        Ok(Some(Self(b)))
+    }
+}
