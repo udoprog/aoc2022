@@ -6,14 +6,14 @@ fn main(input: IStr) -> Result<(Option<usize>, Option<usize>)> {
     let mut part2 = None;
 
     for (n, window) in input.as_bstr().windows(4).enumerate() {
-        if diff(window, 4) {
+        if diff::<u32>(window, 4) {
             part1 = Some(n + 4);
             break;
         }
     }
 
     for (n, window) in input.as_bstr().windows(14).enumerate() {
-        if diff(window, 14) {
+        if diff::<u32>(window, 14) {
             part2 = Some(n + 14);
             break;
         }
@@ -23,10 +23,13 @@ fn main(input: IStr) -> Result<(Option<usize>, Option<usize>)> {
 }
 
 #[inline]
-fn diff(window: &[u8], n: u32) -> bool {
-    let c = window
+fn diff<T>(window: &[u8], n: u32) -> bool
+where
+    T: OwnedBits,
+{
+    window
         .iter()
-        .fold(0u64, |n, d| n | 1 << (*d - b'A') as u64)
-        .count_ones();
-    c == n
+        .fold(T::zeros(), |n, d| n.with_bit((*d - b'A') as u32))
+        .bits_len()
+        == n
 }
