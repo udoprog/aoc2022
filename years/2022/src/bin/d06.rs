@@ -1,29 +1,20 @@
 use lib::prelude::*;
 
 #[entry(input = "d06.txt", expect = (Some(1582), Some(3588)))]
-fn main(mut input: IStr) -> Result<(Option<usize>, Option<usize>)> {
+fn main(input: IStr) -> Result<(Option<usize>, Option<usize>)> {
     let mut part1 = None;
     let mut part2 = None;
 
-    let mut d = ArrayRingBuffer::<_, 16>::new();
-    let mut n = 0;
-    let mut set = FixedSet::<[u64; 4]>::empty();
-
-    while let Some(B(c)) = input.try_next::<B>()? {
-        if d.len() == 14 {
-            d.dequeue();
+    for (n, window) in input.as_bstr().windows(4).enumerate() {
+        if diff(window, 4) {
+            part1 = Some(n + 4);
+            break;
         }
+    }
 
-        d.push(c);
-
-        n += 1;
-
-        if part1.is_none() && d.len() >= 4 && diff(&mut set, d.iter().rev().take(4).copied()) {
-            part1 = Some(n);
-        }
-
-        if part2.is_none() && d.len() >= 14 && diff(&mut set, d.iter().rev().take(14).copied()) {
-            part2 = Some(n);
+    for (n, window) in input.as_bstr().windows(14).enumerate() {
+        if diff(window, 14) {
+            part2 = Some(n + 14);
             break;
         }
     }
@@ -31,19 +22,11 @@ fn main(mut input: IStr) -> Result<(Option<usize>, Option<usize>)> {
     Ok((part1, part2))
 }
 
-fn diff<I>(set: &mut FixedSet<[u64; 4]>, it: I) -> bool
-where
-    I: IntoIterator<Item = u8>,
-{
-    set.clear();
-
-    for d in it {
-        if set.test(d as usize) {
-            return false;
-        }
-
-        set.set(d as usize);
-    }
-
-    true
+#[inline]
+fn diff(window: &[u8], n: u32) -> bool {
+    let c = window
+        .iter()
+        .fold(0u64, |n, d| n | 1 << (*d - b'A') as u64)
+        .count_ones();
+    c == n
 }
