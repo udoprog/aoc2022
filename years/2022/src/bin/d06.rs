@@ -18,28 +18,31 @@ fn main(mut input: IStr) -> Result<(Option<usize>, Option<usize>)> {
 
         n += 1;
 
-        let mut diff = |it| -> bool {
-            set.clear();
-
-            for d in it {
-                if set.test(d as usize) {
-                    return false;
-                }
-
-                set.set(d as usize);
-            }
-
-            true
-        };
-
-        if part1.is_none() && d.len() >= 4 && diff(d.iter().rev().take(4).copied()) {
+        if part1.is_none() && d.len() >= 4 && diff(&mut set, d.iter().rev().take(4).copied()) {
             part1 = Some(n);
         }
 
-        if part2.is_none() && d.len() >= 14 && diff(d.iter().rev().take(14).copied()) {
+        if part2.is_none() && d.len() >= 14 && diff(&mut set, d.iter().rev().take(14).copied()) {
             part2 = Some(n);
         }
     }
 
     Ok((part1, part2))
+}
+
+fn diff<I>(set: &mut FixedSet<[u64; 4]>, it: I) -> bool
+where
+    I: IntoIterator<Item = u8>,
+{
+    set.clear();
+
+    for d in it {
+        if set.test(d as usize) {
+            return false;
+        }
+
+        set.set(d as usize);
+    }
+
+    true
 }
