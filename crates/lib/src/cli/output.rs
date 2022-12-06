@@ -10,6 +10,7 @@ pub(crate) struct Output<O> {
     kind: OutputKind,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum OutputKind {
     Json,
     Normal,

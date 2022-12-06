@@ -43,8 +43,8 @@ pub struct Opts {
     warmup: Option<u64>,
     /// Bench period.
     time_limit: Option<u64>,
-    /// Number of times to run benches.
-    count: Option<usize>,
+    /// Number of iterations to run bench function.
+    iter: Option<usize>,
 }
 
 impl Opts {
@@ -87,12 +87,12 @@ impl Opts {
                             .context("bad argument to `--time-limit`")?,
                     );
                 }
-                "--count" => {
-                    let count = it.next().context("missing argument to `--count`")?;
-                    let count = count
+                "--iter" => {
+                    let iter = it.next().context("missing argument to `--iter`")?;
+                    let iter = iter
                         .to_str()
-                        .context("missing string argument to `--count`")?;
-                    opts.count = Some(count.parse().context("bad argument to `--count`")?);
+                        .context("missing string argument to `--iter`")?;
+                    opts.iter = Some(iter.parse().context("bad argument to `--iter`")?);
                 }
                 "--json" => {
                     opts.json = true;
@@ -162,13 +162,7 @@ impl Report {
         sum: Duration,
         percentiles: Percentiles,
     ) -> Self {
-        let avg = if count == 0 {
-            Duration::default()
-        } else {
-            Duration::from_nanos(
-                u64::try_from((sum.as_nanos()) / (count as u128)).unwrap_or_default(),
-            )
-        };
+        let avg = sum.checked_div(count as u32).unwrap_or_default();
 
         Self {
             count,
