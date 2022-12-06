@@ -24,6 +24,7 @@ fn main(mut input: IStr) -> Result<(Option<usize>, Option<usize>)> {
 
         if part2.is_none() && d.len() >= 14 && diff(&mut set, d.iter().rev().take(14).copied()) {
             part2 = Some(n);
+            break;
         }
     }
 
