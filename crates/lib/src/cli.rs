@@ -116,26 +116,51 @@ impl Opts {
     }
 }
 
+#[derive(Default, Clone, Deserialize, Serialize)]
+pub struct Percentiles {
+    pub buckets: Vec<(u32, Duration)>,
+}
+
+impl Percentiles {
+    /// Construct a new empty collection.
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    /// Check if percentiles is empty.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.buckets.is_empty()
+    }
+
+    /// Insert a sample.
+    pub(crate) fn insert(&mut self, p: u32, samples: &[Duration]) {
+        let perc = (p as f32) / 10000f32;
+
+        let index = ((samples.len() as f32) * perc) as usize;
+        let value = samples.get(index).or(samples.last());
+
+        if let Some(value) = value {
+            self.buckets.push((p, *value));
+        }
+    }
+}
+
 #[derive(Default, Deserialize, Serialize)]
 pub struct Report {
-    pub p50: Duration,
-    pub p95: Duration,
-    pub p99: Duration,
     pub count: usize,
-    pub min: Duration,
-    pub max: Duration,
+    pub min: Option<Duration>,
+    pub max: Option<Duration>,
     pub avg: Duration,
+    pub percentiles: Percentiles,
 }
 
 impl Report {
     fn new(
-        p50: Duration,
-        p95: Duration,
-        p99: Duration,
         count: usize,
-        min: Duration,
-        max: Duration,
+        min: Option<Duration>,
+        max: Option<Duration>,
         sum: Duration,
+        percentiles: Percentiles,
     ) -> Self {
         let avg = if count == 0 {
             Duration::default()
@@ -146,13 +171,11 @@ impl Report {
         };
 
         Self {
-            p50,
-            p95,
-            p99,
             count,
             min,
             max,
             avg,
+            percentiles,
         }
     }
 }
@@ -160,16 +183,65 @@ impl Report {
 impl fmt::Display for Report {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Report {
-            p50,
-            p95,
-            p99,
             count,
             min,
             max,
             avg,
+            percentiles,
         } = self;
 
-        write!(f, "count: {count}, min: {min:?}, max: {max:?}, avg: {avg:?}, 50th: {p50:?}, 95th: {p95:?}, 99th: {p99:?}")
+        let min = Maybe(min);
+        let max = Maybe(max);
+
+        writeln!(f, "count: {count}, min: {min}, max: {max}, avg: {avg:?}")?;
+
+        let mut it = percentiles.buckets.iter();
+        let last = it.next_back();
+
+        for (n, value) in it {
+            let rest = Rest(*n % 100);
+            write!(f, "{}{rest}th: {:?}, ", n / 100, value)?;
+        }
+
+        if let Some((n, value)) = last {
+            let rest = Rest(*n % 100);
+            write!(f, "{}{rest}th: {:?}", n / 100, value)?;
+        }
+
+        return Ok(());
+
+        struct Rest(u32);
+
+        impl fmt::Display for Rest {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                if self.0 == 0 {
+                    return Ok(());
+                }
+
+                let mut n = self.0;
+
+                while n % 10 == 0 {
+                    n /= 10;
+                }
+
+                write!(f, ".{}", n)
+            }
+        }
+
+        struct Maybe<'a, T>(&'a Option<T>);
+
+        impl<T> fmt::Display for Maybe<'_, T>
+        where
+            T: fmt::Debug,
+        {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                if let Some(value) = self.0 {
+                    value.fmt(f)
+                } else {
+                    write!(f, "?")
+                }
+            }
+        }
     }
 }
 
@@ -189,12 +261,22 @@ where
 
 impl AddAssign<&Report> for Report {
     fn add_assign(&mut self, rhs: &Report) {
-        self.p50 += rhs.p50;
-        self.p95 += rhs.p95;
-        self.p99 += rhs.p99;
         self.count += rhs.count;
-        self.min += rhs.min;
-        self.max += rhs.max;
+        self.min = self.min.and_then(|d| Some(d + rhs.min?)).or(rhs.min);
+        self.max = self.max.and_then(|d| Some(d + rhs.max?)).or(rhs.max);
         self.avg += rhs.avg;
+
+        if self.percentiles.is_empty() {
+            self.percentiles = rhs.percentiles.clone();
+        } else {
+            for (to, from) in self
+                .percentiles
+                .buckets
+                .iter_mut()
+                .zip(&rhs.percentiles.buckets)
+            {
+                to.1 += from.1;
+            }
+        }
     }
 }
