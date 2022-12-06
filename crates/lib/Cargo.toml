@@ -11,7 +11,7 @@ std = []
 macros = { path = "../macros" }
 
 anyhow = { version = "1.0.66", features = ["backtrace"] }
-arrayvec = { version = "0.7.2", features = ["std"], default-features = false }
+arrayvec = { version = "0.7.2" }
 bstr = "1.0.1"
 memchr = "2.5.0"
 serde = { version = "1.0.148", features = ["derive"] }
@@ -19,3 +19,5 @@ serde_json = "1.0.89"
 num = "0.4.0"
 num-bigint = "0.4.3"
 log = "0.4.17"
+ringbuffer = "0.10.0"
+bittle = "0.2.2"

@@ -46,15 +46,21 @@ macro_rules! ensure {
 
 pub mod prelude {
     //! Helper prelude with useful imports.
-    pub use crate::input::{IStr, Nl, NonEmpty, Range, Split, Ws, W};
+    pub use crate::input::{IStr, Nl, NonEmpty, Range, Split, Ws, B, W};
     pub use anyhow::{anyhow, Context, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub type ArrayString<const N: usize = 16> = arrayvec::ArrayString<N>;
     pub use crate::ext::SliceExt;
     pub use crate::{bail, ensure};
+    pub use bittle::FixedSet;
     pub use bstr::{BStr, ByteSlice};
     pub use log::*;
     pub use macros::entry;
     pub use num::*;
     pub use num_bigint::{BigInt as I, BigUint as U};
+    pub use ringbuffer::ConstGenericRingBuffer as ArrayRingBuffer;
+    pub use ringbuffer::{RingBuffer, RingBufferExt, RingBufferRead, RingBufferWrite};
+    pub use std::collections::{hash_map, hash_set};
+    pub use std::collections::{HashMap, HashSet};
+    pub use std::mem;
 }

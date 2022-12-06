@@ -19,6 +19,20 @@ where
     }
 }
 
+impl<A, B> OutputEq<Option<B>> for Option<A>
+where
+    A: OutputEq<B>,
+{
+    #[inline]
+    fn output_eq(&self, other: &Option<B>) -> bool {
+        match (self, other) {
+            (Some(a), Some(b)) => a.output_eq(b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
 impl<const N: usize> OutputEq<ArrayString<N>> for &str {
     #[inline]
     fn output_eq(&self, other: &ArrayString<N>) -> bool {

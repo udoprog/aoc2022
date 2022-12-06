@@ -54,6 +54,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bittle"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e765dc06dd778bee74b2b81ab04ed46f8f3391c18031a95520c52de0ef44135"
+
+[[package]]
 name = "bstr"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -95,12 +101,14 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "arrayvec",
+ "bittle",
  "bstr",
  "log",
  "macros",
  "memchr",
  "num",
  "num-bigint",
+ "ringbuffer",
  "serde",
  "serde_json",
 ]
@@ -253,6 +261,12 @@ name = "regex-automata"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c230d73fb8d8c1b9c0b3135c5142a8acee3a0558fb8db5cf1cb65f8d7862132"
+
+[[package]]
+name = "ringbuffer"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "310a2514cb46bb500a2f2ad70c79c51c5a475cc23faa245d2c675faabe889370"
 
 [[package]]
 name = "rustc-demangle"
