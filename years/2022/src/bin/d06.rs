@@ -25,11 +25,11 @@ fn main(input: IStr) -> Result<(Option<usize>, Option<usize>)> {
 #[inline]
 fn diff<T>(window: &[u8], n: u32) -> bool
 where
-    T: OwnedBits,
+    T: BitsOwned,
 {
     window
         .iter()
-        .fold(T::zeros(), |n, d| n.with_bit((*d - b'A') as u32))
-        .bits_len()
+        .fold(T::ZEROS, |n, d| n.with_bit(*d as u32))
+        .count_ones()
         == n
 }
