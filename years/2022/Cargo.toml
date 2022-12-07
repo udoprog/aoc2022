@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 lib = { path = "../../crates/lib" }
+
+relative-path = "1.7.2"

@@ -52,7 +52,7 @@ pub mod prelude {
     pub type ArrayString<const N: usize = 16> = arrayvec::ArrayString<N>;
     pub use crate::ext::SliceExt;
     pub use crate::{bail, ensure};
-    pub use bittle::{Bits, OwnedBits, set as bitset};
+    pub use bittle::{set as bits, Bits, OwnedBits};
     pub use bstr::{BStr, ByteSlice};
     pub use log::*;
     pub use macros::entry;
