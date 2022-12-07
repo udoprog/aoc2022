@@ -118,6 +118,8 @@ impl fmt::Display for ErrorKind {
     }
 }
 
+impl std::error::Error for ErrorKind {}
+
 /// Error raised through string processing.
 #[derive(Debug)]
 pub struct IStrError {
