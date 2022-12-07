@@ -157,6 +157,7 @@ impl IStr {
     }
 
     /// Try to parse the next word.
+    #[inline]
     pub fn try_next_word<T>(&mut self) -> Result<Option<(Size, T)>>
     where
         T: FromInput,
@@ -180,6 +181,7 @@ impl IStr {
         Ok(Some((Size::new(s), value)))
     }
 
+    #[inline]
     fn split_once_at<T>(&mut self, find: T) -> Option<IStr>
     where
         T: FnOnce(&[u8]) -> Option<usize>,
@@ -208,6 +210,7 @@ impl IStr {
     }
 
     /// Find by predicate.
+    #[inline]
     fn find(&self, mut n: usize, p: fn(&u8) -> bool) -> usize {
         while let Some(c) = self.data.get(n) {
             if p(c) {

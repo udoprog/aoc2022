@@ -19,10 +19,10 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     Ok((part1, part2))
 }
 
-fn score(c: u8) -> u64 {
+fn score(c: u8) -> u32 {
     match c {
-        b'a'..=b'z' => (c as u64 - 'a' as u64) + 1,
-        b'A'..=b'Z' => (c as u64 - 'A' as u64) + 27,
+        b'a'..=b'z' => (c as u32 - 'a' as u32) + 1,
+        b'A'..=b'Z' => (c as u32 - 'A' as u32) + 27,
         _ => 0,
     }
 }
@@ -30,11 +30,12 @@ fn score(c: u8) -> u64 {
 struct S(u64);
 
 lib::from_input! {
-    |W(v): W<&'static BStr>| -> S {
+    |W(v): W<&'static [u8]>| -> S {
         Ok(S(set(v)))
     }
 }
 
+#[inline]
 fn set(string: &[u8]) -> u64 {
-    string.bytes().fold(0, |n, c| n | 1u64 << score(c))
+    string.bytes().fold(0, |n, c| n.with_bit(score(c)))
 }
