@@ -1,13 +1,11 @@
 use lib::prelude::*;
 
-use relative_path::{RelativePath as Path, RelativePathBuf as PathBuf};
-
 #[entry(input = "d07.txt", expect = (1444896, 404395))]
 fn main(mut input: IStr) -> Result<(u64, u64)> {
     let mut part1 = 0;
     let mut part2 = u64::MAX;
 
-    let mut cd = PathBuf::new();
+    let mut cd = ArrayString::<128>::new();
 
     let mut sizes = HashMap::<_, u64>::new();
     let mut total = 0;
@@ -26,13 +24,23 @@ fn main(mut input: IStr) -> Result<(u64, u64)> {
             let (name, arg) = command.split_once(' ').context("missing args")?;
 
             match name {
-                "cd" => {
-                    if arg == "/" {
-                        cd = PathBuf::new();
-                    } else {
-                        cd = cd.join_normalized(Path::new(arg));
+                "cd" => match arg {
+                    "/" => {
+                        cd.clear();
                     }
-                }
+                    ".." => match cd.rfind('/') {
+                        Some(n) => {
+                            cd.truncate(n);
+                        }
+                        None => {
+                            cd.clear();
+                        }
+                    },
+                    _ => {
+                        cd.try_push('/')?;
+                        cd.try_push_str(arg)?;
+                    }
+                },
                 name => {
                     panic!("{name}");
                 }
@@ -49,11 +57,11 @@ fn main(mut input: IStr) -> Result<(u64, u64)> {
                 let size = n.parse::<u64>()?;
                 total += size;
 
-                let mut current = Some(cd.clone());
+                let mut cur = Some(cd.as_str());
 
-                while let Some(d) = current.take() {
-                    *sizes.entry(d.clone()).or_default() += n.parse::<u64>()?;
-                    current = d.parent().map(|p| p.to_owned());
+                while let Some(d) = cur.take() {
+                    *sizes.entry(d.to_owned()).or_default() += size;
+                    cur = d.rfind('/').and_then(|n| d.get(..n));
                 }
             }
         }
