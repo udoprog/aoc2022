@@ -55,9 +55,9 @@ dependencies = [
 
 [[package]]
 name = "bittle"
-version = "0.3.4"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d92f831fc72b366eda5f41d03727a6e60d237e79bfa6c5353dd3c29895c7e5b8"
+checksum = "24ef1f0bcb1c652a9293458d630c958fe50ceb25e2a2fb4493dbd9e45855f11e"
 
 [[package]]
 name = "bstr"
