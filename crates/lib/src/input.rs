@@ -420,7 +420,7 @@ impl FromInput for char {
 impl FromInput for IStr {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        Ok(Some(p.clone()))
+        Ok(Some(*p))
     }
 }
 
@@ -512,10 +512,10 @@ where
         match output.into_inner() {
             Ok(array) => Ok(Some(array)),
             Err(array) => {
-                return Err(IStrError::new(
+                Err(IStrError::new(
                     start..p.index,
                     ErrorKind::BadArray(N, array.len()),
-                ));
+                ))
             }
         }
     }
@@ -623,10 +623,10 @@ where
         match array.into_inner() {
             Ok(array) => Ok(Some(array)),
             Err(array) => {
-                return Err(IStrError::new(
+                Err(IStrError::new(
                     index..it.index(),
                     ErrorKind::BadArray(N, array.len()),
-                ));
+                ))
             }
         }
     }
@@ -682,7 +682,7 @@ pub struct B(pub u8);
 impl FromInput for B {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        let Some(&b) = p.data.get(0) else {
+        let Some(&b) = p.data.first() else {
             return Ok(None);
         };
 

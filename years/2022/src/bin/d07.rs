@@ -9,7 +9,7 @@ fn main(input: IStr) -> Result<(u64, u64)> {
     let mut part1 = 0;
     let mut part2 = u64::MAX;
 
-    let total = visit::<16, _>(input.clone(), |size| {
+    let total = visit::<16, _>(input, |size| {
         if size < 100000 {
             part1 += size;
         }
@@ -18,7 +18,7 @@ fn main(input: IStr) -> Result<(u64, u64)> {
     let rem = 70000000.saturating_sub(total);
     let needed = 30000000.saturating_sub(rem);
 
-    visit::<16, _>(input.clone(), |size| {
+    visit::<16, _>(input, |size| {
         if size >= needed {
             part2 = part2.min(size);
         }

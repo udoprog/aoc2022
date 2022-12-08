@@ -137,7 +137,7 @@ impl Percentiles {
         let perc = (p as f32) / 10000f32;
 
         let index = ((samples.len() as f32) * perc) as usize;
-        let value = samples.get(index).or(samples.last());
+        let value = samples.get(index).or_else(|| samples.last());
 
         if let Some(value) = value {
             self.buckets.push((p, *value));
