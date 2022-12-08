@@ -12,6 +12,7 @@ use crate::grid::{Grid, GridExt, GridMut, GridSlice, GridSliceMut};
 pub(self) struct Dims {
     rows: usize,
     columns: usize,
+    stride: usize,
 }
 
 /// A column into a grid slice.
@@ -307,7 +308,7 @@ impl<'a, T> Grid<T> for SliceGrid<'a, T> {
 
     #[inline]
     fn row(&self, row: usize) -> Option<Self::Row<'_>> {
-        if row >= self.data.len() / self.dims.columns {
+        if row >= self.dims.rows {
             return None;
         }
 
@@ -340,32 +341,50 @@ impl<T> GridExt<T> for [T] {
 
     /// Treat the slice as a grid.
     #[inline]
-    fn as_grid(&self, columns: usize) -> SliceGrid<T> {
+    fn as_grid_with_stride(&self, columns: usize, stride: usize) -> SliceGrid<T> {
+        let stride = columns.saturating_add(stride);
         assert!(columns != 0, "columns must be non-zero");
+        assert!(
+            columns <= stride,
+            "columns {columns} must be less or equal to stride {stride}"
+        );
 
-        let rem = self.len() % columns;
+        let rem = self.len() % stride;
         let len = self.len().saturating_sub(rem);
-        let rows = len / columns;
+        let rows = len / stride;
 
         SliceGrid {
             data: ptr::NonNull::from(&self[..len]),
-            dims: Dims { rows, columns },
+            dims: Dims {
+                rows,
+                columns,
+                stride,
+            },
             _marker: PhantomData,
         }
     }
 
     /// Treat the slice as a grid.
     #[inline]
-    fn as_grid_mut(&mut self, columns: usize) -> SliceGridMut<T> {
-        assert!(columns != 0, "columns must be non-zero");
+    fn as_grid_mut_with_stride(&mut self, columns: usize, stride: usize) -> SliceGridMut<T> {
+        let stride = columns.saturating_add(stride);
+        assert!(columns != 0, "stride must be non-zero");
+        assert!(
+            columns <= stride,
+            "columns {columns} must be less or equal to stride {stride}"
+        );
 
-        let rem = self.len() % columns;
+        let rem = self.len() % stride;
         let len = self.len().saturating_sub(rem);
-        let rows = len / columns;
+        let rows = len / stride;
 
         SliceGridMut {
             data: ptr::NonNull::from(&mut self[..len]),
-            dims: Dims { rows, columns },
+            dims: Dims {
+                rows,
+                columns,
+                stride,
+            },
             _marker: PhantomData,
         }
     }
@@ -374,39 +393,39 @@ impl<T> GridExt<T> for [T] {
 #[inline]
 unsafe fn row_index_ref<'a, T>(
     data: ptr::NonNull<[T]>,
-    dims: &'a Dims,
+    dims: &Dims,
     row: usize,
     index: usize,
 ) -> &'a T {
-    &*(data.as_ptr() as *const T).add((row * dims.columns) + index)
+    &*(data.as_ptr() as *const T).add((row * dims.stride) + index)
 }
 
 #[inline]
 unsafe fn row_index_mut<'a, T>(
     data: ptr::NonNull<[T]>,
-    dims: &'a Dims,
+    dims: &Dims,
     row: usize,
     index: usize,
 ) -> &'a mut T {
-    &mut *(data.as_ptr() as *mut T).add((row * dims.columns) + index)
+    &mut *(data.as_ptr() as *mut T).add((row * dims.stride) + index)
 }
 
 #[inline]
 unsafe fn column_index_ref<'a, T>(
     data: ptr::NonNull<[T]>,
-    dims: &'a Dims,
+    dims: &Dims,
     column: usize,
     index: usize,
 ) -> &'a T {
-    &*(data.as_ptr() as *const T).add((index * dims.columns) + column)
+    &*(data.as_ptr() as *const T).add((index * dims.stride) + column)
 }
 
 #[inline]
 unsafe fn column_index_mut<'a, T>(
     data: ptr::NonNull<[T]>,
-    dims: &'a Dims,
+    dims: &Dims,
     column: usize,
     index: usize,
 ) -> &'a mut T {
-    &mut *(data.as_ptr() as *mut T).add((index * dims.columns) + column)
+    &mut *(data.as_ptr() as *mut T).add((index * dims.stride) + column)
 }
