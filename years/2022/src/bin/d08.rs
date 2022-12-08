@@ -112,7 +112,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
 
     for row in seen {
         for col in row {
-            let score = col.into_iter().map(|n| n as u32).fold(1, |a, b| a * b);
+            let score = col.into_iter().map(|n| n as u32).product::<u32>();
             part2 = part2.max(score);
         }
     }
