@@ -38,7 +38,7 @@ impl<'a, T> GridSlice<'a, T> for Column<'a, T> {
     type Iter<'this> = ColumnIter<'this, T> where Self: 'this, T: 'this;
 
     #[inline]
-    fn into_index(self, index: usize) -> Option<&'a T> {
+    fn into_ref(self, index: usize) -> Option<&'a T> {
         if index >= self.dims.rows {
             return None;
         }
@@ -89,11 +89,19 @@ impl<'a, T> Row<'a, T> {
     }
 }
 
+impl<T> AsRef<[T]> for Row<'_, T> {
+    #[inline]
+    fn as_ref(&self) -> &[T] {
+        // SAFETY: the layout of a row is exactly compatible with a slice.
+        unsafe { row_slice_ref(self.data, self.dims, self.row) }
+    }
+}
+
 impl<'a, T> GridSlice<'a, T> for Row<'a, T> {
     type Iter<'this> = slice::Iter<'this, T> where Self: 'this, T: 'this;
 
     #[inline]
-    fn into_index(self, index: usize) -> Option<&'a T> {
+    fn into_ref(self, index: usize) -> Option<&'a T> {
         if index >= self.dims.columns {
             return None;
         }
@@ -200,6 +208,14 @@ impl<'a, T> RowMut<'a, T> {
             row,
             _marker: PhantomData,
         }
+    }
+}
+
+impl<T> AsMut<[T]> for RowMut<'_, T> {
+    #[inline]
+    fn as_mut(&mut self) -> &mut [T] {
+        // SAFETY: the layout of a row is exactly compatible with a slice.
+        unsafe { row_slice_mut(self.data, self.dims, self.row) }
     }
 }
 
