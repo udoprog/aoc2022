@@ -3,6 +3,12 @@ use lib::prelude::*;
 /// Max grid width / height.
 const CAP: usize = 100;
 
+/// Rough description of Part 2, because I'm bound to forget it:
+///
+/// Scan outwards from each tree to find which other higher non-obstructed tree
+/// finds it and keep track of visibility. So if a lower tree sees a higher
+/// tree, the higher tree (i.e. where we're building) sees the lower tree as
+/// well.
 #[entry(input = "d08.txt", expect = (1814, 330786))]
 fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut grid = ArrayVec::<&'static BStr, CAP>::new();
@@ -86,24 +92,40 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
 
             for y in (0..y).rev() {
                 seen[y][x][0] += set(x, y, &mut c);
+
+                if c == b'9' {
+                    break;
+                }
             }
 
             c = 0;
 
             for y in y + 1..grid.len() {
                 seen[y][x][1] += set(x, y, &mut c);
+
+                if c == b'9' {
+                    break;
+                }
             }
 
             c = 0;
 
             for x in (0..x).rev() {
                 seen[y][x][2] += set(x, y, &mut c);
+
+                if c == b'9' {
+                    break;
+                }
             }
 
             c = 0;
 
             for x in x + 1..cols {
                 seen[y][x][3] += set(x, y, &mut c);
+
+                if c == b'9' {
+                    break;
+                }
             }
         }
     }
