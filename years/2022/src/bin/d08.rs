@@ -30,53 +30,51 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let grid = grid.as_grid(cols);
     let mut seen = seen.as_grid_mut(cols);
 
-    let mut set = |x: usize, y: usize, c: &mut u8| {
-        let d = *grid.get(y, x);
+    for (y, row) in grid.rows().enumerate() {
+        let mut c = 0;
 
-        if *c < d {
-            mask[y].set_bit(x as u32);
-            *c = d;
-            true
-        } else {
-            false
-        }
-    };
+        let mut it = row.into_iter().enumerate();
+        let mut back = it.clone();
 
-    let mut c;
-
-    for y in 0..grid.rows_len() {
-        c = 0;
-
-        let mut last = 0;
-
-        for x in 0..cols {
-            if set(x, y, &mut c) {
-                last = x;
+        while let Some((x, &d)) = it.next() {
+            if c < d {
+                mask[y].set_bit(x as u32);
+                c = d;
+                back = it.clone();
             }
         }
 
-        c = 0;
+        let mut c = 0;
 
-        for x in (last..cols).rev() {
-            set(x, y, &mut c);
+        for (x, &d) in back.rev() {
+            if c < d {
+                mask[y].set_bit(x as u32);
+                c = d;
+            }
         }
     }
 
-    for x in 0..grid.columns_len() {
-        c = 0;
+    for (x, col) in grid.columns().enumerate() {
+        let mut c = 0;
 
-        let mut last = 0;
+        let mut it = col.into_iter().enumerate();
+        let mut back = it.clone();
 
-        for y in 0..grid.rows_len() {
-            if set(x, y, &mut c) {
-                last = y;
+        while let Some((y, &d)) = it.next() {
+            if c < d {
+                mask[y].set_bit(x as u32);
+                c = d;
+                back = it.clone();
             }
         }
 
-        c = 0;
+        let mut c = 0;
 
-        for y in (last..grid.rows_len()).rev() {
-            set(x, y, &mut c);
+        for (y, &d) in back.rev() {
+            if c < d {
+                mask[y].set_bit(x as u32);
+                c = d;
+            }
         }
     }
 
@@ -95,25 +93,25 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
 
     for y in 0..grid.rows_len() {
         for x in 0..grid.columns_len() {
-            c = 0;
+            let mut c = 0;
 
             for y in (0..y).rev() {
                 *seen.get_mut(y, x) += set(x, y, &mut c);
             }
 
-            c = 0;
+            let mut c = 0;
 
             for y in y + 1..grid.rows_len() {
                 *seen.get_mut(y, x) += set(x, y, &mut c) << 8;
             }
 
-            c = 0;
+            let mut c = 0;
 
             for x in (0..x).rev() {
                 *seen.get_mut(y, x) += set(x, y, &mut c) << 16;
             }
 
-            c = 0;
+            let mut c = 0;
 
             for x in x + 1..grid.columns_len() {
                 *seen.get_mut(y, x) += set(x, y, &mut c) << 24;
