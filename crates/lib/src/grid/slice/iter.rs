@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use core::ops::Range;
 use core::ptr;
 
-use crate::grid::slice::{column_index_mut, column_index_ref, row_index_mut, row_index_ref};
+use crate::grid::slice::{column_index_mut, column_index_ref};
 use crate::grid::slice::{Column, ColumnMut, Dims, Row, RowMut};
 
 macro_rules! single {
@@ -150,5 +150,3 @@ single!(Columns Column columns [] #[derive(Clone)]);
 single!(ColumnsMut ColumnMut columns [mut]);
 matrix!(ColumnIter rows [] column_index_ref #[derive(Clone)]);
 matrix!(ColumnIterMut rows [mut] column_index_mut);
-matrix!(RowIter columns [] row_index_ref #[derive(Clone)]);
-matrix!(RowIterMut columns [mut] row_index_mut);

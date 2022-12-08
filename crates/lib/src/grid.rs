@@ -121,7 +121,7 @@ pub trait Grid<T> {
     /// Get the element at the given row and column.
     #[inline]
     fn get(&self, row: usize, column: usize) -> &T {
-        match self.row(row).and_then(|row| row.get(column)) {
+        match self.row(row).and_then(|row| row.into_index(column)) {
             Some(value) => value,
             None => panic!("missing row `{row}`, column `{column}`"),
         }
@@ -130,7 +130,7 @@ pub trait Grid<T> {
     /// Get the element at the given row and column.
     #[inline]
     fn try_get(&self, row: usize, column: usize) -> Option<&T> {
-        self.row(row)?.get(column)
+        self.row(row)?.into_index(column)
     }
 }
 
@@ -168,7 +168,7 @@ pub trait GridMut<T>: Grid<T> {
     ///
     /// let mut values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     /// let data: &mut [u8] = &mut values[..];
-    /// let mut grid = data.as_grid_mut(4, 0);
+    /// let mut grid = data.as_grid_mut(4);
     ///
     /// for (n, row) in grid.rows_mut().enumerate() {
     ///     for c in row {
@@ -189,7 +189,7 @@ pub trait GridMut<T>: Grid<T> {
     ///
     /// let mut values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     /// let data: &mut [u8] = &mut values[..];
-    /// let mut grid = data.as_grid_mut(4, 0);
+    /// let mut grid = data.as_grid_mut(4);
     ///
     /// for (n, row) in grid.columns_mut().enumerate() {
     ///     for c in row {
@@ -210,7 +210,7 @@ pub trait GridMut<T>: Grid<T> {
     /// Get the element at the given row and column.
     #[inline]
     fn get_mut(&mut self, row: usize, column: usize) -> &mut T {
-        match self.row_mut(row).and_then(|row| row.get_mut(column)) {
+        match self.row_mut(row).and_then(|row| row.into_mut(column)) {
             Some(value) => value,
             None => panic!("missing row `{row}`, column `{column}`"),
         }
@@ -219,12 +219,12 @@ pub trait GridMut<T>: Grid<T> {
     /// Get the element at the given row and column.
     #[inline]
     fn try_get_mut(&mut self, row: usize, column: usize) -> Option<&mut T> {
-        self.row_mut(row)?.get_mut(column)
+        self.row_mut(row)?.into_mut(column)
     }
 }
 
 /// The slice into a grid.
-pub trait GridSlice<'a, T: 'a>: IntoIterator<IntoIter = Self::Iter> {
+pub trait GridSlice<'a, T: 'a>: IntoIterator<Item = &'a T> {
     /// Iterator over the grid slice.
     ///
     /// # Examples
@@ -238,7 +238,14 @@ pub trait GridSlice<'a, T: 'a>: IntoIterator<IntoIter = Self::Iter> {
     /// grid.row(1).unwrap().into_iter().copied().eq([5, 6, 7, 8]);
     /// grid.column(1).unwrap().into_iter().copied().eq([2, 6, 10]);
     /// ```
-    type Iter: Iterator<Item = &'a T>;
+    type Iter<'this>: Iterator<Item = &'this T>
+    where
+        Self: 'this,
+        T: 'this;
+
+    /// Coerce the slice into a reference extending the lifetime that is part of
+    /// the trait.
+    fn into_index(self, index: usize) -> Option<&'a T>;
 
     /// Access the element at the given index.
     ///
@@ -258,14 +265,26 @@ pub trait GridSlice<'a, T: 'a>: IntoIterator<IntoIter = Self::Iter> {
     ///
     /// assert_eq!(grid.try_get(3, 0), None);
     /// ```
-    fn get(self, index: usize) -> Option<&'a T>;
+    fn get(&self, index: usize) -> Option<&T>;
+
+    /// Construct an iterator over the slice.
+    fn iter(&self) -> Self::Iter<'_>;
 }
 
 /// The slice into a grid.
-pub trait GridSliceMut<'a, T: 'a>: IntoIterator<IntoIter = Self::IterMut> {
+pub trait GridSliceMut<'a, T: 'a>: IntoIterator<Item = &'a mut T> {
     /// Mutable iterator of the grid slice.
-    type IterMut: Iterator<Item = &'a mut T>;
+    type IterMut<'this>: Iterator<Item = &'this mut T>
+    where
+        Self: 'this,
+        T: 'this;
+
+    /// Coerce into the underlying reference.
+    fn into_mut(self, index: usize) -> Option<&'a mut T>;
 
     /// Get the specified value mutably.
-    fn get_mut(self, index: usize) -> Option<&'a mut T>;
+    fn get_mut(&mut self, index: usize) -> Option<&mut T>;
+
+    /// Construct a mutable iterator over the slice.
+    fn iter_mut(&mut self) -> Self::IterMut<'_>;
 }
