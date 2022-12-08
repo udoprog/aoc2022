@@ -6,7 +6,7 @@ use core::mem;
 use core::ptr;
 use core::slice;
 
-use crate::grid::{Grid, GridExt, GridMut, GridSlice, GridSliceMut};
+use crate::grid::{Grid, GridExt, GridMut, GridSlice, GridSliceMut, GridSliceRef};
 
 #[derive(Clone, Copy)]
 pub(self) struct Dims {
@@ -16,6 +16,7 @@ pub(self) struct Dims {
 }
 
 /// A column into a grid slice.
+#[derive(Clone)]
 pub struct Column<'a, T> {
     data: ptr::NonNull<[T]>,
     dims: &'a Dims,
@@ -34,7 +35,7 @@ impl<'a, T> Column<'a, T> {
     }
 }
 
-impl<'a, T> GridSlice<'a, T> for Column<'a, T> {
+impl<'a, T> GridSliceRef<'a, T> for Column<'a, T> {
     type Iter<'this> = ColumnIter<'this, T> where Self: 'this, T: 'this;
 
     #[inline]
@@ -61,6 +62,13 @@ impl<'a, T> GridSlice<'a, T> for Column<'a, T> {
     }
 }
 
+impl<'a, T> GridSlice for Column<'a, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.dims.rows
+    }
+}
+
 impl<'a, T> IntoIterator for Column<'a, T> {
     type Item = &'a T;
     type IntoIter = ColumnIter<'a, T>;
@@ -71,6 +79,7 @@ impl<'a, T> IntoIterator for Column<'a, T> {
     }
 }
 
+#[derive(Clone)]
 pub struct Row<'a, T> {
     data: ptr::NonNull<[T]>,
     dims: &'a Dims,
@@ -97,7 +106,7 @@ impl<T> AsRef<[T]> for Row<'_, T> {
     }
 }
 
-impl<'a, T> GridSlice<'a, T> for Row<'a, T> {
+impl<'a, T> GridSliceRef<'a, T> for Row<'a, T> {
     type Iter<'this> = slice::Iter<'this, T> where Self: 'this, T: 'this;
 
     #[inline]
@@ -123,6 +132,13 @@ impl<'a, T> GridSlice<'a, T> for Row<'a, T> {
     fn iter(&self) -> Self::Iter<'_> {
         // SAFETY: the layout of a row is exactly compatible with a slice.
         unsafe { row_slice_ref(self.data, self.dims, self.row).into_iter() }
+    }
+}
+
+impl<'a, T> GridSlice for Row<'a, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.dims.columns
     }
 }
 
@@ -179,6 +195,13 @@ impl<'a, T> GridSliceMut<'a, T> for ColumnMut<'a, T> {
     #[inline]
     fn iter_mut(&mut self) -> Self::IterMut<'_> {
         ColumnIterMut::new(self.data, self.dims, self.column)
+    }
+}
+
+impl<'a, T> GridSlice for ColumnMut<'a, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.dims.rows
     }
 }
 
@@ -246,6 +269,13 @@ impl<'a, T> GridSliceMut<'a, T> for RowMut<'a, T> {
     fn iter_mut(&mut self) -> Self::IterMut<'_> {
         // SAFETY: the layout of a row is exactly compatible with a slice.
         unsafe { row_slice_mut(self.data, self.dims, self.row).into_iter() }
+    }
+}
+
+impl<'a, T> GridSlice for RowMut<'a, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.dims.columns
     }
 }
 

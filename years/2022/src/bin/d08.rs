@@ -28,8 +28,6 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
         mask.try_push(0)?;
     }
 
-    let mut scores = scores.as_grid_mut(cols);
-
     for (y, row) in grid.rows().enumerate() {
         let it = row.into_iter().enumerate().map(|(x, &d)| (x, y, d));
         let back = it.clone();
@@ -46,49 +44,31 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
 
     let part1 = mask.count_ones();
 
-    let set = |x: usize, y: usize, c: &mut u8| {
-        let d = *grid.get(y, x);
+    let mut s = scores.as_grid_mut(cols);
 
-        if *c < d {
-            *c = d;
-            1
-        } else {
-            0
-        }
-    };
+    for (y, row) in grid.rows().enumerate() {
+        for (x, col) in grid.columns().enumerate() {
+            let row = row.clone().into_iter().enumerate();
+            let col = col.into_iter().enumerate();
 
-    // TODO: rework to do less work.
-    for y in 0..grid.rows_len() {
-        for x in 0..grid.columns_len() {
-            let mut c = 0;
-
-            for y in (0..y).rev() {
-                *scores.get_mut(y, x) += set(x, y, &mut c);
-            }
-
-            let mut c = 0;
-
-            for y in y + 1..grid.rows_len() {
-                *scores.get_mut(y, x) += set(x, y, &mut c) << 8;
-            }
-
-            let mut c = 0;
-
-            for x in (0..x).rev() {
-                *scores.get_mut(y, x) += set(x, y, &mut c) << 16;
-            }
-
-            let mut c = 0;
-
-            for x in x + 1..grid.columns_len() {
-                *scores.get_mut(y, x) += set(x, y, &mut c) << 24;
-            }
+            part2_score(
+                col.clone().take(y).rev().map(|(y, &d)| (x, y, d)),
+                &mut s,
+                0,
+            );
+            part2_score(col.skip(y + 1).map(|(y, &d)| (x, y, d)), &mut s, 8);
+            part2_score(
+                row.clone().take(x).rev().map(|(x, &d)| (x, y, d)),
+                &mut s,
+                16,
+            );
+            part2_score(row.skip(x + 1).map(|(x, &d)| (x, y, d)), &mut s, 24);
         }
     }
 
     let mut part2 = 0;
 
-    for row in scores.rows() {
+    for row in s.rows() {
         for &n in row {
             const M: u32 = 0b11111111;
             let score = ((n >> 24) & M) * ((n >> 16) & M) * ((n >> 8) & M) * (n & M);
@@ -97,6 +77,22 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     }
 
     Ok((part1, part2))
+}
+
+/// Score part two.
+fn part2_score<I, S>(iter: I, scores: &mut S, bits: u32)
+where
+    I: IntoIterator<Item = (usize, usize, u8)>,
+    S: GridMut<u32>,
+{
+    let mut c = 0;
+
+    for (x, y, d) in iter {
+        if c < d {
+            c = d;
+            *scores.get_mut(y, x) += 1 << bits;
+        }
+    }
 }
 
 /// Scan an iterator over trees, returning the last position that one was seen.

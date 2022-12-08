@@ -52,7 +52,7 @@ pub mod prelude {
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub type ArrayString<const N: usize = 16> = arrayvec::ArrayString<N>;
     pub use crate::ext::SliceExt;
-    pub use crate::grid::{Grid, GridExt, GridMut, GridSlice, GridSliceMut};
+    pub use crate::grid::{Grid, GridExt, GridMut, GridSlice, GridSliceMut, GridSliceRef};
     pub use crate::{bail, ensure};
     pub use bittle::{set as bits, Bits, BitsMut, BitsOwned};
     pub use bstr::{BStr, ByteSlice};
