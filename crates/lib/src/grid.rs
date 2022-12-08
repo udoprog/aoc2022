@@ -55,7 +55,7 @@ pub trait GridExt<T>: Sealed {
 
 pub trait Grid<T> {
     /// The column of the grid.
-    type Row<'a>: GridSlice<'a, T>
+    type Row<'a>: GridSlice<'a, T> + AsRef<[T]>
     where
         Self: 'a,
         T: 'a;
@@ -121,7 +121,7 @@ pub trait Grid<T> {
     /// Get the element at the given row and column.
     #[inline]
     fn get(&self, row: usize, column: usize) -> &T {
-        match self.row(row).and_then(|row| row.into_index(column)) {
+        match self.row(row).and_then(|row| row.into_ref(column)) {
             Some(value) => value,
             None => panic!("missing row `{row}`, column `{column}`"),
         }
@@ -130,13 +130,13 @@ pub trait Grid<T> {
     /// Get the element at the given row and column.
     #[inline]
     fn try_get(&self, row: usize, column: usize) -> Option<&T> {
-        self.row(row)?.into_index(column)
+        self.row(row)?.into_ref(column)
     }
 }
 
 pub trait GridMut<T>: Grid<T> {
     /// The column of the grid.
-    type RowMut<'a>: GridSliceMut<'a, T>
+    type RowMut<'a>: GridSliceMut<'a, T> + AsMut<[T]>
     where
         Self: 'a,
         T: 'a;
@@ -245,7 +245,7 @@ pub trait GridSlice<'a, T: 'a>: IntoIterator<Item = &'a T> {
 
     /// Coerce the slice into a reference extending the lifetime that is part of
     /// the trait.
-    fn into_index(self, index: usize) -> Option<&'a T>;
+    fn into_ref(self, index: usize) -> Option<&'a T>;
 
     /// Access the element at the given index.
     ///
