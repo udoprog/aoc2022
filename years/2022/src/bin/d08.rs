@@ -31,54 +31,20 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut seen = seen.as_grid_mut(cols);
 
     for (y, row) in grid.rows().enumerate() {
-        let mut c = 0;
-
-        let mut it = row.into_iter().enumerate();
-        let mut back = it.clone();
-
-        while let Some((x, &d)) = it.next() {
-            if c < d {
-                mask[y].set_bit(x as u32);
-                c = d;
-                back = it.clone();
-            }
-        }
-
-        let mut c = 0;
-
-        for (x, &d) in back.rev() {
-            if c < d {
-                mask[y].set_bit(x as u32);
-                c = d;
-            }
-        }
+        let it = row.into_iter().enumerate().map(|(x, &d)| (x, y, d));
+        let back = it.clone();
+        let (x, _) = part1_scan(it, &mut mask);
+        part1_scan(back.skip(x).rev(), &mut mask);
     }
 
     for (x, col) in grid.columns().enumerate() {
-        let mut c = 0;
-
-        let mut it = col.into_iter().enumerate();
-        let mut back = it.clone();
-
-        while let Some((y, &d)) = it.next() {
-            if c < d {
-                mask[y].set_bit(x as u32);
-                c = d;
-                back = it.clone();
-            }
-        }
-
-        let mut c = 0;
-
-        for (y, &d) in back.rev() {
-            if c < d {
-                mask[y].set_bit(x as u32);
-                c = d;
-            }
-        }
+        let it = col.into_iter().enumerate().map(|(y, &d)| (x, y, d));
+        let back = it.clone();
+        let (_, y) = part1_scan(it, &mut mask);
+        part1_scan(back.skip(y).rev(), &mut mask);
     }
 
-    let part1 = mask.iter().map(|b| b.count_ones()).sum::<u32>();
+    let part1 = mask.count_ones();
 
     let set = |x: usize, y: usize, c: &mut u8| {
         let d = *grid.get(y, x);
@@ -132,4 +98,29 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     }
 
     Ok((part1, part2))
+}
+
+/// Scan an iterator over trees, returning the last position that one was seen.
+fn part1_scan<I>(iter: I, mask: &mut [u128]) -> (usize, usize)
+where
+    I: Iterator<Item = (usize, usize, u8)> + Clone,
+{
+    let mut c = 0;
+
+    let mut last = (0, 0);
+
+    for (x, y, d) in iter {
+        if c < d {
+            mask[y].set_bit(x as u32);
+            c = d;
+            last = (x, y);
+
+            // Break on largest possible tree.
+            if d == b'9' {
+                break;
+            }
+        }
+    }
+
+    last
 }
