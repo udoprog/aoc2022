@@ -37,6 +37,11 @@ macro_rules! single {
             }
 
             #[inline]
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                self.range.size_hint()
+            }
+
+            #[inline]
             fn nth(&mut self, n: usize) -> Option<Self::Item> {
                 let index = self.range.nth(n)?;
                 Some($item::new(self.data, self.dims, index))
@@ -100,12 +105,31 @@ macro_rules! matrix {
                 // SAFETY: we know the data was initialized correctly.
                 Some(unsafe { $fn(self.data, self.dims, self.current, index) })
             }
+
+            #[inline]
+            fn nth(&mut self, n: usize) -> Option<Self::Item> {
+                let index = self.range.nth(n)?;
+                // SAFETY: we know the data was initialized correctly.
+                Some(unsafe { $fn(self.data, self.dims, self.current, index) })
+            }
+
+            #[inline]
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                self.range.size_hint()
+            }
         }
 
         impl<'a, T> DoubleEndedIterator for $name<'a, T> {
             #[inline]
             fn next_back(&mut self) -> Option<Self::Item> {
                 let index = self.range.next_back()?;
+                // SAFETY: we know the data was initialized correctly.
+                Some(unsafe { $fn(self.data, self.dims, self.current, index) })
+            }
+
+            #[inline]
+            fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
+                let index = self.range.nth_back(n)?;
                 // SAFETY: we know the data was initialized correctly.
                 Some(unsafe { $fn(self.data, self.dims, self.current, index) })
             }
