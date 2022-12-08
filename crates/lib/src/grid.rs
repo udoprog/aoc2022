@@ -55,13 +55,13 @@ pub trait GridExt<T>: Sealed {
 
 pub trait Grid<T> {
     /// The column of the grid.
-    type Row<'a>: GridSlice<'a, T> + AsRef<[T]>
+    type Row<'a>: GridSliceRef<'a, T> + AsRef<[T]>
     where
         Self: 'a,
         T: 'a;
 
     /// The column of the grid.
-    type Column<'a>: GridSlice<'a, T>
+    type Column<'a>: GridSliceRef<'a, T>
     where
         Self: 'a,
         T: 'a;
@@ -223,8 +223,19 @@ pub trait GridMut<T>: Grid<T> {
     }
 }
 
+/// Common traits for slices.
+pub trait GridSlice {
+    /// The length of a grid slice.
+    fn len(&self) -> usize;
+
+    /// Test if the grid slice is empty.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 /// The slice into a grid.
-pub trait GridSlice<'a, T: 'a>: IntoIterator<Item = &'a T> {
+pub trait GridSliceRef<'a, T: 'a>: GridSlice + IntoIterator<Item = &'a T> {
     /// Iterator over the grid slice.
     ///
     /// # Examples
@@ -272,7 +283,7 @@ pub trait GridSlice<'a, T: 'a>: IntoIterator<Item = &'a T> {
 }
 
 /// The slice into a grid.
-pub trait GridSliceMut<'a, T: 'a>: IntoIterator<Item = &'a mut T> {
+pub trait GridSliceMut<'a, T: 'a>: GridSlice + IntoIterator<Item = &'a mut T> {
     /// Mutable iterator of the grid slice.
     type IterMut<'this>: Iterator<Item = &'this mut T>
     where
