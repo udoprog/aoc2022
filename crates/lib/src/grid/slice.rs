@@ -6,7 +6,7 @@ use core::mem;
 use core::ptr;
 use core::slice;
 
-use crate::grid::{Grid, GridExt, GridMut, GridSlice, GridSliceMut, GridSliceRef};
+use crate::grid::{Grid, GridExt, GridMut, GridSliceMut, GridSliceRef};
 
 #[derive(Clone, Copy)]
 pub(self) struct Dims {
@@ -39,6 +39,11 @@ impl<'a, T> GridSliceRef<'a, T> for Column<'a, T> {
     type Iter<'this> = ColumnIter<'this, T> where Self: 'this, T: 'this;
 
     #[inline]
+    fn len(&self) -> usize {
+        self.dims.rows
+    }
+
+    #[inline]
     fn into_ref(self, index: usize) -> Option<&'a T> {
         if index >= self.dims.rows {
             return None;
@@ -59,13 +64,6 @@ impl<'a, T> GridSliceRef<'a, T> for Column<'a, T> {
     #[inline]
     fn iter(&self) -> Self::Iter<'_> {
         ColumnIter::new(self.data, self.dims, self.column)
-    }
-}
-
-impl<'a, T> GridSlice for Column<'a, T> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.dims.rows
     }
 }
 
@@ -110,6 +108,11 @@ impl<'a, T> GridSliceRef<'a, T> for Row<'a, T> {
     type Iter<'this> = slice::Iter<'this, T> where Self: 'this, T: 'this;
 
     #[inline]
+    fn len(&self) -> usize {
+        self.dims.columns
+    }
+
+    #[inline]
     fn into_ref(self, index: usize) -> Option<&'a T> {
         if index >= self.dims.columns {
             return None;
@@ -129,16 +132,10 @@ impl<'a, T> GridSliceRef<'a, T> for Row<'a, T> {
         Some(unsafe { row_index_ref(self.data, self.dims, self.row, index) })
     }
 
+    #[inline]
     fn iter(&self) -> Self::Iter<'_> {
         // SAFETY: the layout of a row is exactly compatible with a slice.
         unsafe { row_slice_ref(self.data, self.dims, self.row).into_iter() }
-    }
-}
-
-impl<'a, T> GridSlice for Row<'a, T> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.dims.columns
     }
 }
 
@@ -198,10 +195,35 @@ impl<'a, T> GridSliceMut<'a, T> for ColumnMut<'a, T> {
     }
 }
 
-impl<'a, T> GridSlice for ColumnMut<'a, T> {
+impl<'a, T> GridSliceRef<'a, T> for ColumnMut<'a, T> {
+    type Iter<'this> = ColumnIter<'this, T> where Self: 'this, T: 'this;
+
     #[inline]
     fn len(&self) -> usize {
         self.dims.rows
+    }
+
+    #[inline]
+    fn into_ref(self, index: usize) -> Option<&'a T> {
+        if index >= self.dims.rows {
+            return None;
+        }
+
+        Some(unsafe { column_index_ref(self.data, self.dims, self.column, index) })
+    }
+
+    #[inline]
+    fn get(&self, index: usize) -> Option<&T> {
+        if index >= self.dims.rows {
+            return None;
+        }
+
+        Some(unsafe { column_index_ref(self.data, self.dims, self.column, index) })
+    }
+
+    #[inline]
+    fn iter(&self) -> Self::Iter<'_> {
+        ColumnIter::new(self.data, self.dims, self.column)
     }
 }
 
@@ -272,10 +294,38 @@ impl<'a, T> GridSliceMut<'a, T> for RowMut<'a, T> {
     }
 }
 
-impl<'a, T> GridSlice for RowMut<'a, T> {
+impl<'a, T> GridSliceRef<'a, T> for RowMut<'a, T> {
+    type Iter<'this> = slice::Iter<'this, T> where Self: 'this, T: 'this;
+
     #[inline]
     fn len(&self) -> usize {
         self.dims.columns
+    }
+
+    #[inline]
+    fn into_ref(self, index: usize) -> Option<&'a T> {
+        if index >= self.dims.columns {
+            return None;
+        }
+
+        // SAFETY: we know the data was initialized correctly.
+        Some(unsafe { row_index_ref(self.data, self.dims, self.row, index) })
+    }
+
+    #[inline]
+    fn get(&self, index: usize) -> Option<&T> {
+        if index >= self.dims.columns {
+            return None;
+        }
+
+        // SAFETY: we know the data was initialized correctly.
+        Some(unsafe { row_index_ref(self.data, self.dims, self.row, index) })
+    }
+
+    #[inline]
+    fn iter(&self) -> Self::Iter<'_> {
+        // SAFETY: the layout of a row is exactly compatible with a slice.
+        unsafe { row_slice_ref(self.data, self.dims, self.row).into_iter() }
     }
 }
 
