@@ -1,11 +1,10 @@
 mod iter;
-pub use self::iter::{
-    ColumnIter, ColumnIterMut, Columns, ColumnsMut, RowIter, RowIterMut, Rows, RowsMut,
-};
+pub use self::iter::{ColumnIter, ColumnIterMut, Columns, ColumnsMut, Rows, RowsMut};
 
 use core::marker::PhantomData;
 use core::mem;
 use core::ptr;
+use core::slice;
 
 use crate::grid::{Grid, GridExt, GridMut, GridSlice, GridSliceMut};
 
@@ -36,15 +35,29 @@ impl<'a, T> Column<'a, T> {
 }
 
 impl<'a, T> GridSlice<'a, T> for Column<'a, T> {
-    type Iter = ColumnIter<'a, T>;
+    type Iter<'this> = ColumnIter<'this, T> where Self: 'this, T: 'this;
 
     #[inline]
-    fn get(self, index: usize) -> Option<&'a T> {
+    fn into_index(self, index: usize) -> Option<&'a T> {
         if index >= self.dims.rows {
             return None;
         }
 
         Some(unsafe { column_index_ref(self.data, self.dims, self.column, index) })
+    }
+
+    #[inline]
+    fn get(&self, index: usize) -> Option<&T> {
+        if index >= self.dims.rows {
+            return None;
+        }
+
+        Some(unsafe { column_index_ref(self.data, self.dims, self.column, index) })
+    }
+
+    #[inline]
+    fn iter(&self) -> Self::Iter<'_> {
+        ColumnIter::new(self.data, self.dims, self.column)
     }
 }
 
@@ -77,10 +90,10 @@ impl<'a, T> Row<'a, T> {
 }
 
 impl<'a, T> GridSlice<'a, T> for Row<'a, T> {
-    type Iter = RowIter<'a, T>;
+    type Iter<'this> = slice::Iter<'this, T> where Self: 'this, T: 'this;
 
     #[inline]
-    fn get(self, index: usize) -> Option<&'a T> {
+    fn into_index(self, index: usize) -> Option<&'a T> {
         if index >= self.dims.columns {
             return None;
         }
@@ -88,15 +101,31 @@ impl<'a, T> GridSlice<'a, T> for Row<'a, T> {
         // SAFETY: we know the data was initialized correctly.
         Some(unsafe { row_index_ref(self.data, self.dims, self.row, index) })
     }
+
+    #[inline]
+    fn get(&self, index: usize) -> Option<&T> {
+        if index >= self.dims.columns {
+            return None;
+        }
+
+        // SAFETY: we know the data was initialized correctly.
+        Some(unsafe { row_index_ref(self.data, self.dims, self.row, index) })
+    }
+
+    fn iter(&self) -> Self::Iter<'_> {
+        // SAFETY: the layout of a row is exactly compatible with a slice.
+        unsafe { row_slice_ref(self.data, self.dims, self.row).into_iter() }
+    }
 }
 
 impl<'a, T> IntoIterator for Row<'a, T> {
     type Item = &'a T;
-    type IntoIter = RowIter<'a, T>;
+    type IntoIter = slice::Iter<'a, T>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        RowIter::new(self.data, self.dims, self.row)
+        // SAFETY: the layout of a row is exactly compatible with a slice.
+        unsafe { row_slice_ref(self.data, self.dims, self.row).into_iter() }
     }
 }
 
@@ -119,15 +148,29 @@ impl<'a, T> ColumnMut<'a, T> {
 }
 
 impl<'a, T> GridSliceMut<'a, T> for ColumnMut<'a, T> {
-    type IterMut = ColumnIterMut<'a, T>;
+    type IterMut<'this> = ColumnIterMut<'this, T> where Self: 'this, T: 'this;
 
     #[inline]
-    fn get_mut(self, index: usize) -> Option<&'a mut T> {
+    fn into_mut(self, index: usize) -> Option<&'a mut T> {
         if index >= self.dims.rows {
             return None;
         }
 
         unsafe { Some(column_index_mut(self.data, self.dims, self.column, index)) }
+    }
+
+    #[inline]
+    fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        if index >= self.dims.rows {
+            return None;
+        }
+
+        unsafe { Some(column_index_mut(self.data, self.dims, self.column, index)) }
+    }
+
+    #[inline]
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        ColumnIterMut::new(self.data, self.dims, self.column)
     }
 }
 
@@ -161,10 +204,10 @@ impl<'a, T> RowMut<'a, T> {
 }
 
 impl<'a, T> GridSliceMut<'a, T> for RowMut<'a, T> {
-    type IterMut = RowIterMut<'a, T>;
+    type IterMut<'this> = slice::IterMut<'this, T> where Self: 'this, T: 'this;
 
     #[inline]
-    fn get_mut(self, index: usize) -> Option<&'a mut T> {
+    fn into_mut(self, index: usize) -> Option<&'a mut T> {
         if index >= self.dims.columns {
             return None;
         }
@@ -172,15 +215,32 @@ impl<'a, T> GridSliceMut<'a, T> for RowMut<'a, T> {
         // SAFETY: We're bounds checking these slices during construction.
         unsafe { Some(row_index_mut(self.data, self.dims, self.row, index)) }
     }
+
+    #[inline]
+    fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        if index >= self.dims.columns {
+            return None;
+        }
+
+        // SAFETY: We're bounds checking these slices during construction.
+        unsafe { Some(row_index_mut(self.data, self.dims, self.row, index)) }
+    }
+
+    #[inline]
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        // SAFETY: the layout of a row is exactly compatible with a slice.
+        unsafe { row_slice_mut(self.data, self.dims, self.row).into_iter() }
+    }
 }
 
 impl<'a, T> IntoIterator for RowMut<'a, T> {
     type Item = &'a mut T;
-    type IntoIter = RowIterMut<'a, T>;
+    type IntoIter = slice::IterMut<'a, T>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        RowIterMut::new(self.data, self.dims, self.row)
+        // SAFETY: the layout of a row is exactly compatible with a slice.
+        unsafe { row_slice_mut(self.data, self.dims, self.row).into_iter() }
     }
 }
 
@@ -440,6 +500,28 @@ unsafe fn row_index_mut<'a, T>(
     } else {
         &mut *(data.as_ptr() as *mut T).add((row * dims.stride) + index)
     }
+}
+
+#[inline]
+unsafe fn row_slice_ref<'a, T>(data: ptr::NonNull<[T]>, dims: &Dims, row: usize) -> &'a [T] {
+    let ptr = if mem::size_of::<T>() == 0 {
+        data.as_ptr() as *const T
+    } else {
+        (data.as_ptr() as *const T).add(row * dims.stride)
+    };
+
+    slice::from_raw_parts(ptr, dims.columns)
+}
+
+#[inline]
+unsafe fn row_slice_mut<'a, T>(data: ptr::NonNull<[T]>, dims: &Dims, row: usize) -> &'a mut [T] {
+    let ptr = if mem::size_of::<T>() == 0 {
+        data.as_ptr() as *mut T
+    } else {
+        (data.as_ptr() as *mut T).add(row * dims.stride)
+    };
+
+    slice::from_raw_parts_mut(ptr, dims.columns)
 }
 
 #[inline]
