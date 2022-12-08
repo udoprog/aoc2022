@@ -4,6 +4,7 @@ pub use self::iter::{
 };
 
 use core::marker::PhantomData;
+use core::mem;
 use core::ptr;
 
 use crate::grid::{Grid, GridExt, GridMut, GridSlice, GridSliceMut};
@@ -390,6 +391,29 @@ impl<T> GridExt<T> for [T] {
     }
 }
 
+// Utility functions below.
+//
+// A note on ZST: The base address of the underlying slice can always be treated
+// as the address to a reference of the ZST.
+//
+// Mutability also isn't a concern, because there is nothing to mutate for ZSTs.
+//
+// Don't like it? Bring it up with management:
+//
+// ```
+// fn main() {
+//     let array = [(); 1024];
+//     let mut it = array.iter();
+//     let first = it.next().unwrap();
+//     let second = it.next().unwrap();
+//     let base = array[..].as_ptr();
+//     assert!(std::ptr::eq(&array[0], base));
+//     assert!(std::ptr::eq(&array[0], first));
+//     assert!(std::ptr::eq(&array[0], second));
+//     assert!(std::ptr::eq(&array[0], &array[512]));
+// }
+// ```
+
 #[inline]
 unsafe fn row_index_ref<'a, T>(
     data: ptr::NonNull<[T]>,
@@ -397,7 +421,11 @@ unsafe fn row_index_ref<'a, T>(
     row: usize,
     index: usize,
 ) -> &'a T {
-    &*(data.as_ptr() as *const T).add((row * dims.stride) + index)
+    if mem::size_of::<T>() == 0 {
+        &*(data.as_ptr() as *const T)
+    } else {
+        &*(data.as_ptr() as *const T).add((row * dims.stride) + index)
+    }
 }
 
 #[inline]
@@ -407,7 +435,11 @@ unsafe fn row_index_mut<'a, T>(
     row: usize,
     index: usize,
 ) -> &'a mut T {
-    &mut *(data.as_ptr() as *mut T).add((row * dims.stride) + index)
+    if mem::size_of::<T>() == 0 {
+        &mut *(data.as_ptr() as *mut T)
+    } else {
+        &mut *(data.as_ptr() as *mut T).add((row * dims.stride) + index)
+    }
 }
 
 #[inline]
@@ -417,7 +449,11 @@ unsafe fn column_index_ref<'a, T>(
     column: usize,
     index: usize,
 ) -> &'a T {
-    &*(data.as_ptr() as *const T).add((index * dims.stride) + column)
+    if mem::size_of::<T>() == 0 {
+        &*(data.as_ptr() as *const T)
+    } else {
+        &*(data.as_ptr() as *const T).add((index * dims.stride) + column)
+    }
 }
 
 #[inline]
@@ -427,5 +463,9 @@ unsafe fn column_index_mut<'a, T>(
     column: usize,
     index: usize,
 ) -> &'a mut T {
-    &mut *(data.as_ptr() as *mut T).add((index * dims.stride) + column)
+    if mem::size_of::<T>() == 0 {
+        &mut *(data.as_ptr() as *mut T)
+    } else {
+        &mut *(data.as_ptr() as *mut T).add((index * dims.stride) + column)
+    }
 }
