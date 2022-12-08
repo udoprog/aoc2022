@@ -1,6 +1,13 @@
 pub mod slice;
 
-pub trait GridExt<T> {
+mod sealed {
+    pub trait Sealed {}
+    impl<T> Sealed for [T] {}
+}
+
+pub(self) use self::sealed::Sealed;
+
+pub trait GridExt<T>: Sealed {
     /// Return value as an immutable grid.
     type Grid<'this>: Grid<T>
     where
@@ -11,11 +18,39 @@ pub trait GridExt<T> {
     where
         Self: 'this;
 
-    /// Convert type into a grid with the given topology.
-    fn as_grid(&self, columns: usize) -> Self::Grid<'_>;
+    /// Convert type into grid with a stride of `0`.
+    ///
+    /// See [GridExt::as_grid_with_stride].
+    #[inline]
+    fn as_grid(&self, columns: usize) -> Self::Grid<'_> {
+        self.as_grid_with_stride(columns, 0)
+    }
 
     /// Convert type into a grid with the given topology.
-    fn as_grid_mut(&mut self, columns: usize) -> Self::GridMut<'_>;
+    ///
+    /// The `columns` is the width of a row while `stride` is the number of
+    /// elements between each row.
+    ///
+    /// This allows for specifying a stride that is larger than the number of
+    /// columns to offset the grid inside of the data structure.
+    fn as_grid_with_stride(&self, columns: usize, stride: usize) -> Self::Grid<'_>;
+
+    /// Convert type into grid with a stride of `0`.
+    ///
+    /// See [GridExt::as_grid_mut_with_stride].
+    #[inline]
+    fn as_grid_mut(&mut self, columns: usize) -> Self::GridMut<'_> {
+        self.as_grid_mut_with_stride(columns, 0)
+    }
+
+    /// Convert type into a grid with the given topology.
+    ///
+    /// The `columns` is the width of a row while `stride` is the number of
+    /// elements between each row.
+    ///
+    /// This allows for specifying a stride that is larger than the number of
+    /// columns to offset the grid inside of the data structure.
+    fn as_grid_mut_with_stride(&mut self, columns: usize, stride: usize) -> Self::GridMut<'_>;
 }
 
 pub trait Grid<T> {
@@ -133,7 +168,7 @@ pub trait GridMut<T>: Grid<T> {
     ///
     /// let mut values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     /// let data: &mut [u8] = &mut values[..];
-    /// let mut grid = data.as_grid_mut(4);
+    /// let mut grid = data.as_grid_mut(4, 0);
     ///
     /// for (n, row) in grid.rows_mut().enumerate() {
     ///     for c in row {
@@ -154,7 +189,7 @@ pub trait GridMut<T>: Grid<T> {
     ///
     /// let mut values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     /// let data: &mut [u8] = &mut values[..];
-    /// let mut grid = data.as_grid_mut(4);
+    /// let mut grid = data.as_grid_mut(4, 0);
     ///
     /// for (n, row) in grid.columns_mut().enumerate() {
     ///     for c in row {

@@ -218,7 +218,7 @@ impl fmt::Display for Report {
                     n /= 10;
                 }
 
-                write!(f, ".{}", n)
+                write!(f, ".{n}")
             }
         }
 
