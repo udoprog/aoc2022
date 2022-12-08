@@ -511,12 +511,10 @@ where
 
         match output.into_inner() {
             Ok(array) => Ok(Some(array)),
-            Err(array) => {
-                Err(IStrError::new(
-                    start..p.index,
-                    ErrorKind::BadArray(N, array.len()),
-                ))
-            }
+            Err(array) => Err(IStrError::new(
+                start..p.index,
+                ErrorKind::BadArray(N, array.len()),
+            )),
         }
     }
 }
@@ -622,12 +620,10 @@ where
 
         match array.into_inner() {
             Ok(array) => Ok(Some(array)),
-            Err(array) => {
-                Err(IStrError::new(
-                    index..it.index(),
-                    ErrorKind::BadArray(N, array.len()),
-                ))
-            }
+            Err(array) => Err(IStrError::new(
+                index..it.index(),
+                ErrorKind::BadArray(N, array.len()),
+            )),
         }
     }
 }

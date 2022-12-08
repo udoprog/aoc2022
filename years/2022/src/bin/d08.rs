@@ -11,26 +11,31 @@ const CAP: usize = 100;
 /// well.
 #[entry(input = "d08.txt", expect = (1814, 330786))]
 fn main(mut input: IStr) -> Result<(u32, u32)> {
-    let mut grid = ArrayVec::<&'static BStr, CAP>::new();
+    let mut grid = ArrayVec::<u8, { CAP * CAP }>::new();
     let mut mask = ArrayVec::<u128, CAP>::new();
-    let mut seen = [[[0u8; 4]; CAP]; CAP];
+    let mut seen = [0u32; { CAP * CAP }];
 
     let mut cols = 0;
 
-    while let Some(line) = input.try_line::<&BStr>()? {
+    while let Some(line) = input.try_line::<&[u8]>()? {
         if line.is_empty() {
             break;
         }
 
-        grid.try_push(line)?;
+        grid.try_extend_from_slice(line)?;
         mask.try_push(0)?;
         cols = cols.max(line.len());
     }
 
+    let grid = grid.as_grid(cols);
+    let mut seen = seen.as_grid_mut(cols);
+
     let mut set = |x: usize, y: usize, c: &mut u8| {
-        if *c < grid[y][x] {
+        let d = *grid.get(y, x);
+
+        if *c < d {
             mask[y].set_bit(x as u32);
-            *c = grid[y][x];
+            *c = d;
             true
         } else {
             false
@@ -39,7 +44,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
 
     let mut c;
 
-    for y in 0..grid.len() {
+    for y in 0..grid.rows_len() {
         c = 0;
 
         let mut last = 0;
@@ -57,12 +62,12 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
         }
     }
 
-    for x in 0..cols {
+    for x in 0..grid.columns_len() {
         c = 0;
 
         let mut last = 0;
 
-        for y in 0..grid.len() {
+        for y in 0..grid.rows_len() {
             if set(x, y, &mut c) {
                 last = y;
             }
@@ -70,7 +75,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
 
         c = 0;
 
-        for y in (last..grid.len()).rev() {
+        for y in (last..grid.rows_len()).rev() {
             set(x, y, &mut c);
         }
     }
@@ -78,63 +83,52 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let part1 = mask.iter().map(|b| b.count_ones()).sum::<u32>();
 
     let set = |x: usize, y: usize, c: &mut u8| {
-        if *c < grid[y][x] {
-            *c = grid[y][x];
+        let d = *grid.get(y, x);
+
+        if *c < d {
+            *c = d;
             1
         } else {
             0
         }
     };
 
-    for y in 0..grid.len() {
-        for x in 0..cols {
+    for y in 0..grid.rows_len() {
+        for x in 0..grid.columns_len() {
             c = 0;
 
             for y in (0..y).rev() {
-                seen[y][x][0] += set(x, y, &mut c);
-
-                if c == b'9' {
-                    break;
-                }
+                *seen.get_mut(y, x) += set(x, y, &mut c);
             }
 
             c = 0;
 
-            for y in y + 1..grid.len() {
-                seen[y][x][1] += set(x, y, &mut c);
-
-                if c == b'9' {
-                    break;
-                }
+            for y in y + 1..grid.rows_len() {
+                *seen.get_mut(y, x) += set(x, y, &mut c) << 8;
             }
 
             c = 0;
 
             for x in (0..x).rev() {
-                seen[y][x][2] += set(x, y, &mut c);
-
-                if c == b'9' {
-                    break;
-                }
+                *seen.get_mut(y, x) += set(x, y, &mut c) << 16;
             }
 
             c = 0;
 
-            for x in x + 1..cols {
-                seen[y][x][3] += set(x, y, &mut c);
-
-                if c == b'9' {
-                    break;
-                }
+            for x in x + 1..grid.columns_len() {
+                *seen.get_mut(y, x) += set(x, y, &mut c) << 24;
             }
         }
     }
 
     let mut part2 = 0;
 
-    for row in seen {
-        for col in row {
-            let score = col.into_iter().map(|n| n as u32).product::<u32>();
+    for row in seen.rows() {
+        for n in row {
+            const M: u32 = 0b11111111;
+            let score = [(n >> 24) & M, (n >> 16) & M, (n >> 8) & M, n & M]
+                .into_iter()
+                .product::<u32>();
             part2 = part2.max(score);
         }
     }
