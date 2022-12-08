@@ -12,7 +12,7 @@ const CAP: usize = 128;
 #[entry(input = "d08.txt", expect = (1814, 330786))]
 fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut mask = ArrayVec::<u128, CAP>::new();
-    let mut scores = [0u32; { CAP * CAP }];
+    let mut scores = [[0u8; 4]; { CAP * CAP }];
 
     let grid = input.as_data();
     let cols = input.line::<&[u8]>()?.len();
@@ -46,33 +46,23 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
 
     let mut s = scores.as_grid_mut(cols);
 
-    for (y, row) in grid.rows().enumerate() {
-        for (x, col) in grid.columns().enumerate() {
-            let row = row.clone().into_iter().enumerate();
-            let col = col.into_iter().enumerate();
+    for (y, r) in grid.rows().enumerate() {
+        for (x, c) in grid.columns().enumerate() {
+            let r = r.clone().into_iter().enumerate();
+            let c = c.into_iter().enumerate();
 
-            part2_score(
-                col.clone().take(y).rev().map(|(y, &d)| (x, y, d)),
-                &mut s,
-                0,
-            );
-            part2_score(col.skip(y + 1).map(|(y, &d)| (x, y, d)), &mut s, 8);
-            part2_score(
-                row.clone().take(x).rev().map(|(x, &d)| (x, y, d)),
-                &mut s,
-                16,
-            );
-            part2_score(row.skip(x + 1).map(|(x, &d)| (x, y, d)), &mut s, 24);
+            part2(c.clone().take(y).rev().map(|(y, &d)| (x, y, d)), &mut s, 0);
+            part2(r.clone().take(x).rev().map(|(x, &d)| (x, y, d)), &mut s, 1);
+            part2(c.skip(y + 1).map(|(y, &d)| (x, y, d)), &mut s, 2);
+            part2(r.skip(x + 1).map(|(x, &d)| (x, y, d)), &mut s, 3);
         }
     }
 
     let mut part2 = 0;
 
     for row in s.rows() {
-        for &n in row {
-            const M: u32 = 0b11111111;
-            let score = ((n >> 24) & M) * ((n >> 16) & M) * ((n >> 8) & M) * (n & M);
-            part2 = part2.max(score);
+        for &[a, b, c, d] in row {
+            part2 = part2.max(a as u32 * b as u32 * c as u32 * d as u32);
         }
     }
 
@@ -80,17 +70,21 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
 }
 
 /// Score part two.
-fn part2_score<I, S>(iter: I, scores: &mut S, bits: u32)
+fn part2<I, S>(iter: I, scores: &mut S, n: usize)
 where
     I: IntoIterator<Item = (usize, usize, u8)>,
-    S: GridMut<u32>,
+    S: GridMut<[u8; 4]>,
 {
     let mut c = 0;
 
     for (x, y, d) in iter {
         if c < d {
+            scores.get_mut(y, x)[n] += 1;
             c = d;
-            *scores.get_mut(y, x) += 1 << bits;
+        }
+
+        if d == b'9' {
+            break;
         }
     }
 }
