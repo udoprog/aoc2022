@@ -58,7 +58,6 @@ pub mod prelude {
     pub use bstr::{BStr, ByteSlice};
     pub use log::*;
     pub use macros::entry;
-    pub use num::*;
     pub use num_bigint::{BigInt as I, BigUint as U};
     pub use ringbuffer::ConstGenericRingBuffer as ArrayRingBuffer;
     pub use ringbuffer::{RingBuffer, RingBufferExt, RingBufferRead, RingBufferWrite};

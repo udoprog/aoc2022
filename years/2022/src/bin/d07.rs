@@ -15,8 +15,8 @@ fn main(input: IStr) -> Result<(u64, u64)> {
         }
     })?;
 
-    let rem = 70000000.saturating_sub(total);
-    let needed = 30000000.saturating_sub(rem);
+    let rem = 70000000u64.saturating_sub(total);
+    let needed = 30000000u64.saturating_sub(rem);
 
     visit::<16, _>(input, |size| {
         if size >= needed {
