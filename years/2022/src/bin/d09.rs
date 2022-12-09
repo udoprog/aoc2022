@@ -10,10 +10,10 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut knots = [(0, 0); 10];
 
     // Translate position to bitset index.
-    let pos_to_index = |p: (i32, i32)| (p.0 + MID) as u32 * CAP as u32 + (p.1 + MID) as u32;
+    let pos = |p: (i32, i32)| (p.0 + MID) as u32 * CAP as u32 + (p.1 + MID) as u32;
 
-    part1.set_bit(pos_to_index(knots[0]));
-    part2.set_bit(pos_to_index(knots[0]));
+    part1.set_bit(pos(knots[0]));
+    part2.set_bit(pos(knots[0]));
 
     while let Some((B(m), b)) = input.try_line::<(B, usize)>()? {
         let m = match m {
@@ -28,33 +28,24 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
             knots[0].0 += m.0;
             knots[0].1 += m.1;
 
-            for n in 1..knots.len() {
-                let h = knots[n - 1];
-                let t = &mut knots[n];
-                *t = move_for(&h, t).unwrap_or(*t);
+            let mut n = 0..;
+
+            while let Some([h, t]) = n.next().and_then(|n| knots.get_mut(n..=n + 1)) {
+                let (x, y) = (h.0 - t.0, h.1 - t.1);
+
+                if x.abs() >= 2 || y.abs() >= 2 {
+                    *t = (t.0 + x.signum(), t.1 + y.signum());
+                }
             }
 
             let [h, p1, .., p2] = knots;
             anyhow::ensure!(h.0.abs() < MID && h.1.abs() < MID, "oob: {h:?}");
-            part1.set_bit(pos_to_index(p1));
-            part2.set_bit(pos_to_index(p2));
+            part1.set_bit(pos(p1));
+            part2.set_bit(pos(p2));
         }
     }
 
     let part1 = part1.count_ones();
     let part2 = part2.count_ones();
     Ok((part1, part2))
-}
-
-/// Calculate move.
-#[inline]
-fn move_for(h: &(i32, i32), t: &(i32, i32)) -> Option<(i32, i32)> {
-    let x = h.0 - t.0;
-    let y = h.1 - t.1;
-
-    if x.abs() < 2 && y.abs() < 2 {
-        return None;
-    }
-
-    Some((t.0 + x.signum(), t.1 + y.signum()))
 }
