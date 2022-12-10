@@ -136,6 +136,61 @@ pub trait Grid<T> {
     }
 }
 
+impl<G, T> Grid<T> for &G
+where
+    G: Grid<T>,
+{
+    type Row<'a> = G::Row<'a>
+    where
+        Self: 'a,
+        T: 'a;
+
+    type Column<'a> = G::Column<'a>
+    where
+        Self: 'a,
+        T: 'a;
+
+    type Rows<'a> = G::Rows<'a>
+    where
+        Self: 'a,
+        T: 'a;
+
+    type Columns<'a> = G::Columns<'a>
+    where
+        Self: 'a,
+        T: 'a;
+
+    #[inline]
+    fn rows(&self) -> Self::Rows<'_> {
+        (**self).rows()
+    }
+
+    #[inline]
+    fn columns(&self) -> Self::Columns<'_> {
+        (**self).columns()
+    }
+
+    #[inline]
+    fn row(&self, row: usize) -> Option<Self::Row<'_>> {
+        (**self).row(row)
+    }
+
+    #[inline]
+    fn column(&self, column: usize) -> Option<Self::Column<'_>> {
+        (**self).column(column)
+    }
+
+    #[inline]
+    fn rows_len(&self) -> usize {
+        (**self).rows_len()
+    }
+
+    #[inline]
+    fn columns_len(&self) -> usize {
+        (**self).columns_len()
+    }
+}
+
 pub trait GridMut<T>: Grid<T> {
     /// The column of the grid.
     type RowMut<'a>: GridSliceMut<'a, T> + AsMut<[T]> + IntoIterator<Item = &'a mut T>

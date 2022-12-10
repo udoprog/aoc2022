@@ -288,6 +288,20 @@ pub trait FromInputIter: Sized {
         I: InputIterator;
 }
 
+impl<T> FromInput for Option<T>
+where
+    T: FromInput,
+{
+    #[inline]
+    fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
+        let Some(value) = T::try_from_input(p)? else {
+            return Ok(Some(None));
+        };
+
+        Ok(Some(Some(value)))
+    }
+}
+
 macro_rules! tuple {
     ($num:literal => $first:ident $first_id:ident $(, $rest:ident $rest_id:ident)* $(,)?) => {
         impl<$first, $($rest,)*> FromInput for ($first, $($rest, )*)
