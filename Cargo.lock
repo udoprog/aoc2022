@@ -107,7 +107,6 @@ dependencies = [
  "macros",
  "memchr",
  "num",
- "num-bigint",
  "ringbuffer",
  "serde",
  "serde_json",
