@@ -22,11 +22,9 @@ fn main(mut input: IStr) -> Result<(u64, u64)> {
     let mut factors = 1;
 
     while let Some(..) = input.try_next::<(W, W, Ws)>()? {
-        let (_, _, Split(items)) = input.line::<(W, W, Split<',', ArrayRingBuffer<_, QUEUE>>)>()?;
-        let (_, _, _, _, op, operand) = input.next::<(W, W, W, W, Op, Operand)>()?;
-        let (_, _, _, div) = input.next::<(W, W, W, _)>()?;
-        let (_, if_true) = input.next::<((W, W, W, W, W), usize)>()?;
-        let (_, if_false) = input.next::<((W, W, W, W, W), usize)>()?;
+        let (_, Split(items)) = input.line::<([W; 2], Split<',', ArrayRingBuffer<_, QUEUE>>)>()?;
+        let (_, op, operand, _, div, _, if_true, _, if_false) =
+            input.next::<([W; 4], _, _, [W; 3], _, [W; 5], _, [W; 5], _)>()?;
 
         factors *= div;
 

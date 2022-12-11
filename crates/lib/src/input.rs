@@ -1,6 +1,7 @@
 //! Input parser.
 
 mod error;
+pub mod input_iter;
 mod iter;
 
 use core::mem;
@@ -15,6 +16,7 @@ pub use self::error::{Custom, ErrorKind, IStrError};
 pub use self::iter::Iter;
 
 pub(self) type Result<T> = std::result::Result<T, IStrError>;
+use self::input_iter::InputIterator;
 use crate::env::Size;
 
 pub(crate) const NL: u8 = b'\n';
@@ -75,14 +77,14 @@ impl IStr {
     /// Split `N` times.
     #[inline]
     pub fn splitn(&mut self, byte: u8) -> impl InputIterator + '_ {
-        return Iterator { input: self, byte };
+        return SplitN { input: self, byte };
 
-        struct Iterator<'a> {
+        struct SplitN<'a> {
             input: &'a mut IStr,
             byte: u8,
         }
 
-        impl<'a> InputIterator for Iterator<'a> {
+        impl<'a> InputIterator for SplitN<'a> {
             #[inline]
             fn index(&self) -> Size {
                 self.input.index
@@ -275,15 +277,6 @@ pub trait FromInput: Sized {
     }
 }
 
-/// Iterator over inputs.
-pub trait InputIterator {
-    /// Current index of the input iterator.
-    fn index(&self) -> Size;
-
-    /// Get next input.
-    fn next(&mut self) -> Option<IStr>;
-}
-
 /// Parse something from a pair of inputs.
 pub trait FromInputIter: Sized {
     /// Optionally try to confuse input ignoring leading whitespace by default.
@@ -392,12 +385,20 @@ macro_rules! integer {
     };
 }
 
-tuple!(1 => A a);
-tuple!(2 => A a, B b);
-tuple!(3 => A a, B b, C c);
-tuple!(4 => A a, B b, C c, D d);
-tuple!(5 => A a, B b, C c, D d, E e);
-tuple!(6 => A a, B b, C c, D d, E e, F f);
+tuple!(1 => T0 t0);
+tuple!(2 => T0 t0, T1 t1);
+tuple!(3 => T0 t0, T1 t1, T2 t2);
+tuple!(4 => T0 t0, T1 t1, T2 t2, T3 t3);
+tuple!(5 => T0 t0, T1 t1, T2 t2, T3 t3, T4 t4);
+tuple!(6 => T0 t0, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5);
+tuple!(7 => T0 t0, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6);
+tuple!(8 => T0 t0, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7);
+tuple!(9 => T0 t0, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8);
+tuple!(10 => T0 t0, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8, T9 t9);
+tuple!(11 => T0 t0, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8, T9 t9, T10 t10);
+tuple!(12 => T0 t0, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8, T9 t9, T10 t10, T11 t11);
+tuple!(13 => T0 t0, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8, T9 t9, T10 t10, T11 t11, T12 t12);
+tuple!(14 => T0 t0, T1 t1, T2 t2, T3 t3, T4 t4, T5 t5, T6 t6, T7 t7, T8 t8, T9 t9, T10 t10, T11 t11, T12 t12, T13 t13);
 
 integer!(usize, NotInteger);
 integer!(isize, NotInteger);
@@ -517,30 +518,32 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        let start = p.index;
+        let index = p.index();
+        let mut array = ArrayVec::<T, N>::new();
 
-        let Some(output) = arrayvec::ArrayVec::try_from_input(p)? else {
-            return Ok(None);
-        };
+        while array.remaining_capacity() > 0 {
+            let value = p.next::<T>()?;
+            array.push(value);
+        }
 
-        match output.into_inner() {
+        match array.into_inner() {
             Ok(array) => Ok(Some(array)),
             Err(array) => Err(IStrError::new(
-                start..p.index,
+                index..p.index(),
                 ErrorKind::BadArray(N, array.len()),
             )),
         }
     }
 }
 
-impl<T, const N: usize> FromInput for arrayvec::ArrayVec<T, N>
+impl<T, const N: usize> FromInput for ArrayVec<T, N>
 where
     T: FromInput,
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
         let index = p.index;
-        let mut output = arrayvec::ArrayVec::new();
+        let mut output = ArrayVec::new();
 
         while let Some(element) = T::try_from_input(p)? {
             if output.remaining_capacity() == 0 {
@@ -618,10 +621,18 @@ where
         I: InputIterator,
     {
         let index = it.index();
+        let mut array = ArrayVec::<T, N>::new();
 
-        let Some(array) = ArrayVec::<T, N>::from_input_iter(it)? else {
-            return Ok(None);
-        };
+        while array.remaining_capacity() > 0 {
+            let Some(mut value) = it.next() else {
+                return Err(IStrError::new(
+                    index..it.index(),
+                    ErrorKind::BadArray(N, array.len()),
+                ));
+            };
+
+            array.push(value.next()?);
+        }
 
         match array.into_inner() {
             Ok(array) => Ok(Some(array)),
@@ -643,7 +654,7 @@ where
         I: InputIterator,
     {
         let index = it.index();
-        let mut array = ArrayVec::new();
+        let mut array = ArrayVec::<T, N>::new();
 
         while let Some(mut value) = it.next() {
             let Some(value) = T::try_from_input(&mut value)? else {
@@ -684,7 +695,7 @@ where
             if array.is_full() {
                 return Err(IStrError::new(
                     index..it.index(),
-                    ErrorKind::ArrayCapacity(N),
+                    ErrorKind::RingbufCapacity(N),
                 ));
             }
 
