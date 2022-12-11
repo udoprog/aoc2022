@@ -24,21 +24,20 @@ where
 pub struct LineCol {
     line: usize,
     start: usize,
-    end: usize,
 }
 
 impl LineCol {
-    pub(crate) const EMPTY: Self = Self::new(0, 0, 0);
+    pub(crate) const EMPTY: Self = Self::new(0, 0);
 
-    pub(crate) const fn new(line: usize, start: usize, end: usize) -> Self {
-        Self { line, start, end }
+    pub(crate) const fn new(line: usize, start: usize) -> Self {
+        Self { line, start }
     }
 }
 
 impl fmt::Display for LineCol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let line = self.line + 1;
-        write!(f, "{line}:{}-{}", self.start, self.end)
+        write!(f, "{line}:{}", self.start)
     }
 }
 

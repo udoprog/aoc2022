@@ -68,15 +68,7 @@ pub(crate) fn pos_from(data: &[u8], span: Range<Size>) -> LineCol {
         .unwrap_or_default();
 
     let start = d.get(last.saturating_add(1)..).unwrap_or_default().len();
-
-    let end = if let Some(end) = data.get(span) {
-        let len = memchr::memchr(NL, end).unwrap_or(end.len());
-        start.saturating_add(len)
-    } else {
-        start
-    };
-
-    LineCol::new(line, start, end)
+    LineCol::new(line, start)
 }
 
 /// Input processing.
