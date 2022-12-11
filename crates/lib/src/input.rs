@@ -9,6 +9,7 @@ use std::str::from_utf8;
 
 use arrayvec::ArrayVec;
 use bstr::BStr;
+use ringbuffer::ConstGenericRingBuffer;
 
 pub use self::error::{Custom, ErrorKind, IStrError};
 pub use self::iter::Iter;
@@ -138,11 +139,14 @@ impl IStr {
     where
         T: FromInput,
     {
+        let data = self.data;
+
         let Some(mut line) = self.split_once(NL) else {
             return Ok(None);
         };
 
         let Some(output) = line.try_next()? else {
+            self.data = data;
             return Ok(None);
         };
 
@@ -283,7 +287,7 @@ pub trait InputIterator {
 /// Parse something from a pair of inputs.
 pub trait FromInputIter: Sized {
     /// Optionally try to confuse input ignoring leading whitespace by default.
-    fn from_input_iter<I>(inputs: I) -> Result<Option<Self>>
+    fn from_input_iter<I>(it: &mut I) -> Result<Option<Self>>
     where
         I: InputIterator;
 }
@@ -336,16 +340,16 @@ macro_rules! tuple {
             $($rest: FromInput,)*
         {
             #[inline]
-            fn from_input_iter<I>(mut inputs: I) -> Result<Option<Self>>
+            fn from_input_iter<I>(it: &mut I) -> Result<Option<Self>>
             where
                 I: InputIterator
             {
-                let Some(mut $first_id) = inputs.next() else {
+                let Some(mut $first_id) = it.next() else {
                     return Ok(None);
                 };
 
                 $(
-                    let Some(mut $rest_id) = inputs.next() else {
+                    let Some(mut $rest_id) = it.next() else {
                         return Ok(None);
                     };
                 )*
@@ -409,8 +413,8 @@ integer!(i64, NotInteger);
 integer!(i128, NotInteger);
 integer!(f32, NotFloat);
 integer!(f64, NotFloat);
-integer!(num_bigint::BigInt, NotInteger);
-integer!(num_bigint::BigUint, NotInteger);
+integer!(num::bigint::BigInt, NotInteger);
+integer!(num::bigint::BigUint, NotInteger);
 
 impl FromInput for char {
     #[inline]
@@ -482,11 +486,7 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        let Some(mut input) = p.split_once(NL) else {
-            return Ok(None);
-        };
-
-        Ok(Some(Self(input.next()?)))
+        p.try_line()
     }
 }
 
@@ -580,9 +580,9 @@ where
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        let it = p.splitn(D as u8);
+        let mut it = p.splitn(D as u8);
 
-        let Some(out) = T::from_input_iter(it)? else {
+        let Some(out) = T::from_input_iter(&mut it)? else {
             return Ok(None);
         };
 
@@ -613,24 +613,15 @@ where
     T: FromInput,
 {
     #[inline]
-    fn from_input_iter<I>(mut it: I) -> Result<Option<Self>>
+    fn from_input_iter<I>(it: &mut I) -> Result<Option<Self>>
     where
         I: InputIterator,
     {
         let index = it.index();
-        let mut array = ArrayVec::new();
 
-        while array.remaining_capacity() > 0 {
-            let Some(mut value) = it.next() else {
-                return Ok(None);
-            };
-
-            let Some(value) = T::try_from_input(&mut value)? else {
-                return Ok(None);
-            };
-
-            array.push(value);
-        }
+        let Some(array) = ArrayVec::<T, N>::from_input_iter(it)? else {
+            return Ok(None);
+        };
 
         match array.into_inner() {
             Ok(array) => Ok(Some(array)),
@@ -639,6 +630,68 @@ where
                 ErrorKind::BadArray(N, array.len()),
             )),
         }
+    }
+}
+
+impl<const N: usize, T> FromInputIter for ArrayVec<T, N>
+where
+    T: FromInput,
+{
+    #[inline]
+    fn from_input_iter<I>(it: &mut I) -> Result<Option<Self>>
+    where
+        I: InputIterator,
+    {
+        let index = it.index();
+        let mut array = ArrayVec::new();
+
+        while let Some(mut value) = it.next() {
+            let Some(value) = T::try_from_input(&mut value)? else {
+                return Ok(None);
+            };
+
+            if let Err(..) = array.try_push(value) {
+                return Err(IStrError::new(
+                    index..it.index(),
+                    ErrorKind::ArrayCapacity(N),
+                ));
+            }
+        }
+
+        Ok(Some(array))
+    }
+}
+
+impl<const N: usize, T> FromInputIter for ConstGenericRingBuffer<T, N>
+where
+    T: FromInput,
+{
+    #[inline]
+    fn from_input_iter<I>(it: &mut I) -> Result<Option<Self>>
+    where
+        I: InputIterator,
+    {
+        use ringbuffer::{RingBuffer, RingBufferWrite};
+
+        let index = it.index();
+        let mut array = ConstGenericRingBuffer::new();
+
+        while let Some(mut value) = it.next() {
+            let Some(value) = T::try_from_input(&mut value)? else {
+                return Ok(None);
+            };
+
+            if array.is_full() {
+                return Err(IStrError::new(
+                    index..it.index(),
+                    ErrorKind::ArrayCapacity(N),
+                ));
+            }
+
+            array.push(value);
+        }
+
+        Ok(Some(array))
     }
 }
 

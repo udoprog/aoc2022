@@ -1,7 +1,9 @@
 use core::fmt;
 use core::ops::Range;
+use std::num::ParseIntError;
 
 use bstr::BStr;
+use num::bigint::ParseBigIntError;
 
 use crate::env::Size;
 
@@ -74,7 +76,7 @@ impl fmt::Display for Custom {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum ErrorKind {
     NotInteger(&'static str),
@@ -87,6 +89,8 @@ pub enum ErrorKind {
     NotByteMuck,
     UnexpectedEof,
     ArrayCapacity(usize),
+    ParseIntError(ParseIntError),
+    ParseBigIntError(ParseBigIntError),
     Custom(Custom),
     Condition(&'static str, Option<Custom>),
 }
@@ -101,11 +105,13 @@ impl fmt::Display for ErrorKind {
                 write!(f, "bad array; expected {expected}, but got {actual}")
             }
             ErrorKind::ExpectedChar => write!(f, "exptected charater"),
-            ErrorKind::ExpectedLine => write!(f, "bad line"),
+            ErrorKind::ExpectedLine => write!(f, "expected line"),
             ErrorKind::UnexpectedEof => write!(f, "unexpected eof"),
             ErrorKind::ExpectedTuple(n) => write!(f, "expected tuple of length `{n}`"),
             ErrorKind::NotByteMuck => write!(f, "not a valid number muck"),
             ErrorKind::ArrayCapacity(cap) => write!(f, "array out of capacity ({cap})"),
+            ErrorKind::ParseIntError(e) => write!(f, "{e}"),
+            ErrorKind::ParseBigIntError(e) => write!(f, "{e}"),
             ErrorKind::Custom(c) => write!(f, "custom: {c}"),
             ErrorKind::Condition(condition, custom) => {
                 if let Some(custom) = custom {
@@ -119,6 +125,20 @@ impl fmt::Display for ErrorKind {
 }
 
 impl std::error::Error for ErrorKind {}
+
+impl From<ParseIntError> for ErrorKind {
+    #[inline]
+    fn from(error: ParseIntError) -> Self {
+        Self::ParseIntError(error)
+    }
+}
+
+impl From<ParseBigIntError> for ErrorKind {
+    #[inline]
+    fn from(error: ParseBigIntError) -> Self {
+        Self::ParseBigIntError(error)
+    }
+}
 
 /// Error raised through string processing.
 #[derive(Debug)]
