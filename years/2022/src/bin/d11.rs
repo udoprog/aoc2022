@@ -57,12 +57,12 @@ fn main(mut input: IStr) -> Result<(u64, u64)> {
 
                     let op = monkeys[n].op;
 
-                    let checked_op = match op {
-                        Op::Mul => u64::checked_mul,
-                        Op::Add => u64::checked_add,
+                    let result = match op {
+                        Op::Mul => item.checked_mul(operand),
+                        Op::Add => item.checked_add(operand),
                     };
 
-                    let Some(mut item) = checked_op(item, operand) else {
+                    let Some(mut item) = result else {
                         anyhow::bail!("{item} {op} {operand}: overflow");
                     };
 
