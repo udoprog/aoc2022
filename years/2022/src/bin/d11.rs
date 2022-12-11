@@ -35,8 +35,7 @@ fn main(mut input: IStr) -> Result<(u64, u64)> {
             op,
             operand,
             div,
-            if_true,
-            if_false,
+            conds: [if_false, if_true],
         });
     }
 
@@ -50,12 +49,18 @@ fn main(mut input: IStr) -> Result<(u64, u64)> {
         for _ in 0..end {
             for n in 0..monkeys.len() {
                 while let Some(item) = monkeys[n].items.dequeue() {
-                    let operand = match monkeys[n].operand {
+                    let Monkey {
+                        op,
+                        operand,
+                        div,
+                        conds,
+                        ..
+                    } = monkeys[n];
+
+                    let operand = match operand {
                         Operand::Old => item,
                         Operand::Value(n) => n,
                     };
-
-                    let op = monkeys[n].op;
 
                     let result = match op {
                         Op::Mul => item.checked_mul(operand),
@@ -67,14 +72,9 @@ fn main(mut input: IStr) -> Result<(u64, u64)> {
                     };
 
                     item = (item % factors) / stress;
-
-                    let t = if item % monkeys[n].div == 0 {
-                        monkeys[n].if_true
-                    } else {
-                        monkeys[n].if_false
-                    };
-
-                    monkeys[t].items.push(item);
+                    let t = conds[usize::from(item % div == 0)];
+                    let to = monkeys.get_mut(t).context("missing monkey")?;
+                    to.items.push(item);
                     levels[n] += 1;
                 }
             }
@@ -96,8 +96,7 @@ struct Monkey {
     op: Op,
     operand: Operand,
     div: u64,
-    if_true: usize,
-    if_false: usize,
+    conds: [usize; 2],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -125,7 +124,7 @@ lib::from_input! {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 enum Operand {
     Value(u64),
     Old,
