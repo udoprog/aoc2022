@@ -56,6 +56,7 @@ pub mod prelude {
     pub use crate::{bail, ensure};
     pub use bittle::{set as bits, Bits, BitsMut, BitsOwned};
     pub use bstr::{BStr, ByteSlice};
+    pub use fixed_heap::FixedHeap;
     pub use log::*;
     pub use macros::entry;
     pub use num::bigint::{BigInt as I, BigUint as U};
