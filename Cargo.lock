@@ -84,6 +84,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "fixed_heap"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "498da729e748e16d51af97326d8560618d3a93d35ac14d8f3c3bb3b00f161488"
+
+[[package]]
 name = "gimli"
 version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -103,6 +109,7 @@ dependencies = [
  "arrayvec",
  "bittle",
  "bstr",
+ "fixed_heap",
  "log",
  "macros",
  "memchr",
