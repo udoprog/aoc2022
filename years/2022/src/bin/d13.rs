@@ -1,12 +1,10 @@
 use core::cmp::{Ordering, PartialOrd};
-use core::fmt;
 
 use lib::prelude::*;
 
 // These might need tweaking to get your input to parse.
 const ARENA: usize = 1 << 19;
 const MAX_SLICE: usize = 5;
-const PACKETS: usize = 512;
 
 // Specified divisors.
 const DIV1: Packet = Packet::List(&[Packet::List(&[Packet::Number(2)])]);
@@ -19,46 +17,31 @@ fn main(mut input: IStr) -> Result<(u32, usize)> {
     let mut data = [0; ARENA];
     let arena = Arena::new(&mut data);
 
-    let mut all = ArrayVec::<_, PACKETS>::new();
+    let mut n = 0;
 
-    let mut n = 1;
-
-    all.try_push(DIV1).map_err(|e| anyhow::anyhow!("{e}"))?;
-    all.try_push(DIV2).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let mut div1 = usize::from(DIV1 > DIV2) + 1;
+    let mut div2 = usize::from(DIV2 > DIV1) + 1;
 
     while let Some(mut a) = input.try_line::<IStr>()? {
+        n += 1;
         let mut b = input.line::<IStr>()?;
 
         let a = parse(&mut a, &arena)?.context("failed to parse a")?;
         let b = parse(&mut b, &arena)?.context("failed to parse b")?;
 
-        if matches!(a.cmp(&b), Ordering::Less) {
+        if a < b {
             part1 += n;
         }
 
-        all.try_push(a).map_err(|e| anyhow::anyhow!("{e}"))?;
-        all.try_push(b).map_err(|e| anyhow::anyhow!("{e}"))?;
+        div1 += usize::from(DIV1 >= a) + usize::from(DIV1 > b);
+        div2 += usize::from(DIV2 >= a) + usize::from(DIV2 > b);
 
         if input.ws()? == 0 {
             break;
         }
-
-        n += 1;
     }
 
-    all.sort();
-
-    let mut part2 = 1;
-
-    for (n, item) in all.iter().enumerate() {
-        match *item {
-            DIV1 | DIV2 => {
-                part2 *= n + 1;
-            }
-            _ => {}
-        }
-    }
-
+    let part2 = div1 * div2;
     Ok((part1, part2))
 }
 
@@ -82,24 +65,6 @@ impl Ord for Packet<'_> {
             (Packet::List(a), Packet::Number(b)) => a.iter().cmp([&Packet::Number(*b)]),
             (Packet::Number(a), Packet::List(b)) => [&Packet::Number(*a)].into_iter().cmp(b.iter()),
             (Packet::Number(a), Packet::Number(b)) => a.cmp(b),
-        }
-    }
-}
-
-impl fmt::Debug for Packet<'_> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Packet::List(list) => {
-                let mut f = f.debug_list();
-
-                for item in *list {
-                    f.entry(item);
-                }
-
-                f.finish()
-            }
-            Packet::Number(number) => number.fmt(f),
         }
     }
 }
