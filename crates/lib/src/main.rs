@@ -189,7 +189,7 @@ fn build_project(opts: &Opts) -> Result<(Vec<Executable>, ExitStatus)> {
     }
 
     if let Some(project) = &opts.project {
-        cmd.args(&["-p", project.as_str()]);
+        cmd.args(["-p", project.as_str()]);
     } else {
         cmd.arg("--all");
     }

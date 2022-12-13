@@ -27,10 +27,8 @@ fn main(mut input: IStr) -> Result<(i32, ArrayString<8>)> {
             cycle += 1;
             x += op;
 
-            if cycle >= 20 && cycle <= 220 {
-                if (cycle - 20) % 40 == 0 {
-                    part1 += cycle * x;
-                }
+            if (20..=220).contains(&cycle) && (cycle - 20) % 40 == 0 {
+                part1 += cycle * x;
             }
         }
     }
@@ -47,7 +45,7 @@ fn main(mut input: IStr) -> Result<(i32, ArrayString<8>)> {
         }
     }
 
-    let output = read_lcd(&screen)?;
+    let output = read_lcd(screen)?;
     Ok((part1, output))
 }
 

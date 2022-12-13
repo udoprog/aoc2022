@@ -81,7 +81,7 @@ impl Ord for Packet<'_> {
             (Packet::List(a), Packet::List(b)) => a.iter().cmp(b.iter()),
             (Packet::List(a), Packet::Number(b)) => a.iter().cmp([&Packet::Number(*b)]),
             (Packet::Number(a), Packet::List(b)) => [&Packet::Number(*a)].into_iter().cmp(b.iter()),
-            (Packet::Number(a), Packet::Number(b)) => a.cmp(&b),
+            (Packet::Number(a), Packet::Number(b)) => a.cmp(b),
         }
     }
 }

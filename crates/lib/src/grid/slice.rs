@@ -135,7 +135,7 @@ impl<'a, T> GridSliceRef<'a, T> for Row<'a, T> {
     #[inline]
     fn iter(&self) -> Self::Iter<'_> {
         // SAFETY: the layout of a row is exactly compatible with a slice.
-        unsafe { row_slice_ref(self.data, self.dims, self.row).into_iter() }
+        unsafe { row_slice_ref(self.data, self.dims, self.row).iter() }
     }
 }
 
@@ -146,7 +146,7 @@ impl<'a, T> IntoIterator for Row<'a, T> {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         // SAFETY: the layout of a row is exactly compatible with a slice.
-        unsafe { row_slice_ref(self.data, self.dims, self.row).into_iter() }
+        unsafe { row_slice_ref(self.data, self.dims, self.row).iter() }
     }
 }
 
@@ -290,7 +290,7 @@ impl<'a, T> GridSliceMut<'a, T> for RowMut<'a, T> {
     #[inline]
     fn iter_mut(&mut self) -> Self::IterMut<'_> {
         // SAFETY: the layout of a row is exactly compatible with a slice.
-        unsafe { row_slice_mut(self.data, self.dims, self.row).into_iter() }
+        unsafe { row_slice_mut(self.data, self.dims, self.row).iter_mut() }
     }
 }
 
@@ -325,7 +325,7 @@ impl<'a, T> GridSliceRef<'a, T> for RowMut<'a, T> {
     #[inline]
     fn iter(&self) -> Self::Iter<'_> {
         // SAFETY: the layout of a row is exactly compatible with a slice.
-        unsafe { row_slice_ref(self.data, self.dims, self.row).into_iter() }
+        unsafe { row_slice_ref(self.data, self.dims, self.row).iter() }
     }
 }
 
@@ -336,7 +336,7 @@ impl<'a, T> IntoIterator for RowMut<'a, T> {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         // SAFETY: the layout of a row is exactly compatible with a slice.
-        unsafe { row_slice_mut(self.data, self.dims, self.row).into_iter() }
+        unsafe { row_slice_mut(self.data, self.dims, self.row).iter_mut() }
     }
 }
 
