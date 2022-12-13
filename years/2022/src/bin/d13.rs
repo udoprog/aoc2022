@@ -3,7 +3,7 @@ use core::cmp::{Ordering, PartialOrd};
 use lib::prelude::*;
 
 // These might need tweaking to get your input to parse.
-const ARENA: usize = 1 << 19;
+const ARENA: usize = 1 << 18;
 const MAX_SLICE: usize = 5;
 
 // Specified divisors.
@@ -79,9 +79,15 @@ fn parse<'a>(input: &mut IStr, arena: &'a Arena<'a>) -> Result<Option<Packet<'a>
         b'[' => {
             input.next::<B>()?;
 
-            let mut slice = arena.alloc_iter(MAX_SLICE)?;
+            let mut data = ArrayVec::<_, MAX_SLICE>::new();
 
             while let Some(item) = parse(input, arena)? {
+                data.try_push(item).map_err(|e| anyhow::anyhow!("{e}"))?;
+            }
+
+            let mut slice = arena.alloc_iter(data.len())?;
+
+            for item in data {
                 slice.write(item)?;
             }
 
@@ -95,6 +101,6 @@ fn parse<'a>(input: &mut IStr, arena: &'a Arena<'a>) -> Result<Option<Packet<'a>
             input.next::<B>()?;
             parse(input, arena)
         }
-        _ => Ok(Some(Packet::Number(input.next::<Digits<u32>>()?.0))),
+        _ => Ok(Some(Packet::Number(input.next::<Digits<_>>()?.0))),
     }
 }
