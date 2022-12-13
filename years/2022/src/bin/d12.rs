@@ -1,17 +1,10 @@
-#![allow(warnings, unused)]
-
-use std::{cmp::Reverse, collections::BinaryHeap};
-
 use lib::prelude::*;
 
 const CAP: usize = 256;
 const HEAP_CAP: usize = 64;
 
 #[entry(input = "d12.txt", expect = (534, 525))]
-fn main(mut input: IStr) -> Result<(u32, u32)> {
-    let mut part1 = 0;
-    let mut part2 = 0;
-
+fn main(input: IStr) -> Result<(u32, u32)> {
     let mut visited = [0u128; CAP * (CAP / 128)];
 
     let cols = input.clone().line::<&[u8]>()?.len();
@@ -67,7 +60,6 @@ where
     C: Fn(u8, u8) -> bool,
     E: Fn(u8) -> bool,
 {
-    let mut steps = 0;
     let mut heap = FixedHeap::<_, HEAP_CAP>::new();
 
     let comparer = |a: &Element, b: &Element, _: &()| a.0 < b.0;

@@ -4,9 +4,10 @@ mod error;
 pub mod input_iter;
 mod iter;
 
+use core::fmt;
 use core::mem;
 use core::ops;
-use std::str::from_utf8;
+use core::str::from_utf8;
 
 use arrayvec::ArrayVec;
 use bstr::BStr;
@@ -22,7 +23,7 @@ use crate::env::Size;
 pub(crate) const NL: u8 = b'\n';
 
 /// Helper to parse input.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[cfg_attr(prod, repr(transparent))]
 pub struct IStr {
     /// The path being parsed.
@@ -97,6 +98,22 @@ impl IStr {
         }
     }
 
+    /// Try to peek for next value `T`.
+    #[inline]
+    pub fn peek<T>(&mut self) -> Result<Option<T>>
+    where
+        T: FromInput,
+    {
+        let data = self.data;
+
+        let Some(value) = self.try_next()? else {
+            return Ok(None);
+        };
+
+        self.data = data;
+        Ok(Some(value))
+    }
+
     /// Parse the next value as T.
     #[inline]
     #[allow(clippy::should_implement_trait)]
@@ -168,8 +185,17 @@ impl IStr {
     where
         T: FromInput,
     {
+        self.try_next_with(u8::is_ascii_whitespace)
+    }
+
+    /// Try to parse the next word.
+    #[inline]
+    pub fn try_next_with<T>(&mut self, find: fn(&u8) -> bool) -> Result<Option<(Size, T)>>
+    where
+        T: FromInput,
+    {
         let s = self.find(0, |b| !u8::is_ascii_whitespace(b));
-        let n = self.find(s, u8::is_ascii_whitespace);
+        let n = self.find(s, find);
 
         if s == n {
             return Ok(None);
@@ -247,9 +273,10 @@ impl IStr {
     }
 }
 
-impl IStr {
-    pub fn test(&mut self) {
-        println!("yes?");
+impl fmt::Debug for IStr {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        BStr::new(self.data).fmt(f)
     }
 }
 
@@ -726,6 +753,23 @@ where
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
         let Some((_, value)) = p.try_next_word()? else {
+            return Ok(None);
+        };
+
+        Ok(Some(Self(value)))
+    }
+}
+
+/// Parse a word of input, which parses until we reach a whitespace or control character.
+pub struct Digits<T = Skip>(pub T);
+
+impl<T> FromInput for Digits<T>
+where
+    T: FromInput,
+{
+    #[inline]
+    fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
+        let Some((_, value)) = p.try_next_with(|d| !d.is_ascii_digit())? else {
             return Ok(None);
         };
 
