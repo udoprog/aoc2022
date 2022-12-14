@@ -1,5 +1,7 @@
 use crate::env::Size;
-use crate::input::IStr;
+use crate::input::{IStr, Result};
+
+use super::FromInput;
 
 /// Iterator over inputs.
 pub trait InputIterator {
@@ -14,8 +16,24 @@ pub trait InputIterator {
         Take { iter: self, n }
     }
 
-    /// Get the next chunk.
-    fn next(&mut self) -> Option<IStr>;
+    /// Next value as type `T`.
+    fn next<T>(&mut self) -> Result<Option<T>>
+    where
+        T: FromInput,
+    {
+        let Some(mut value) = self.next_input() else {
+            return Ok(None);
+        };
+
+        let Some(value) = T::try_from_input(&mut value)? else {
+            return Ok(None);
+        };
+
+        Ok(Some(value))
+    }
+
+    /// Get next input.
+    fn next_input(&mut self) -> Option<IStr>;
 }
 
 /// See [InputIterator::take].
@@ -34,15 +52,13 @@ where
     }
 
     #[inline]
-    fn next(&mut self) -> Option<IStr> {
-        dbg!(self.n);
-
+    fn next_input(&mut self) -> Option<IStr> {
         if self.n == 0 {
             return None;
         }
 
         self.n -= 1;
-        self.iter.next()
+        self.iter.next_input()
     }
 }
 
@@ -56,7 +72,7 @@ where
     }
 
     #[inline]
-    fn next(&mut self) -> Option<IStr> {
-        (**self).next()
+    fn next_input(&mut self) -> Option<IStr> {
+        (**self).next_input()
     }
 }

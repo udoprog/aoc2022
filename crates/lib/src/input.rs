@@ -17,7 +17,7 @@ pub use self::error::{Custom, ErrorKind, IStrError};
 pub use self::iter::Iter;
 
 pub(self) type Result<T> = std::result::Result<T, IStrError>;
-use self::input_iter::InputIterator;
+pub use self::input_iter::InputIterator;
 use crate::env::Size;
 
 pub(crate) const NL: u8 = b'\n';
@@ -75,9 +75,18 @@ impl IStr {
         Iter::new(self)
     }
 
+    /// Split on string.
+    pub fn split<'a, B>(&'a mut self, string: &'a B) -> impl InputIterator + 'a
+    where
+        B: ?Sized + AsRef<[u8]>,
+    {
+        let finder = memchr::memmem::Finder::new(string);
+        self.split_at(move |bytes| Some((finder.find(bytes)?, string.as_ref().len())))
+    }
+
     /// Split `N` times.
     #[inline]
-    pub fn split<'a, F>(&'a mut self, finder: F) -> impl InputIterator + 'a
+    fn split_at<'a, F>(&'a mut self, finder: F) -> impl InputIterator + 'a
     where
         F: 'a + Fn(&[u8]) -> Option<(usize, usize)>,
     {
@@ -102,7 +111,7 @@ impl IStr {
             }
 
             #[inline]
-            fn next(&mut self) -> Option<IStr> {
+            fn next_input(&mut self) -> Option<IStr> {
                 self.input.split_once_at(|bytes| (self.finder)(bytes))
             }
         }
@@ -374,22 +383,12 @@ macro_rules! tuple {
             where
                 I: InputIterator
             {
-                let Some(mut $first_id) = it.next() else {
+                let Some($first_id) = it.next()? else {
                     return Ok(None);
                 };
 
                 $(
-                    let Some(mut $rest_id) = it.next() else {
-                        return Ok(None);
-                    };
-                )*
-
-                let Some($first_id) = <$first>::try_from_input(&mut $first_id)? else {
-                    return Ok(None);
-                };
-
-                $(
-                    let Some($rest_id) = <$rest>::try_from_input(&mut $rest_id)? else {
+                    let Some($rest_id) = it.next()? else {
                         return Ok(None);
                     };
                 )*
@@ -622,8 +621,7 @@ where
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
         let mut string = [0u8; 4];
         let string = D0.encode_utf8(&mut string);
-        let finder = memchr::memmem::Finder::new(string);
-        let mut it = p.split(|bytes| Some((finder.find(bytes)?, string.len())));
+        let mut it = p.split(string);
 
         let Some(out) = T::from_input_iter(&mut it)? else {
             return Ok(None);
@@ -646,9 +644,7 @@ where
         let mut string = [0u8; 8];
         let d0 = D0.encode_utf8(&mut string[0..]).len();
         let d1 = D1.encode_utf8(&mut string[d0..]).len();
-        let string = &string[..d0 + d1];
-        let finder = memchr::memmem::Finder::new(string);
-        let mut it = p.split(|bytes| Some((finder.find(bytes)?, string.len())));
+        let mut it = p.split(&string[..d0 + d1]);
 
         let Some(out) = T::from_input_iter(&mut it)? else {
             return Ok(None);
@@ -689,14 +685,14 @@ where
         let mut array = ArrayVec::<T, N>::new();
 
         while array.remaining_capacity() > 0 {
-            let Some(mut value) = it.next() else {
+            let Some(value) = it.next()? else {
                 return Err(IStrError::new(
                     index..it.index(),
                     ErrorKind::BadArray(N, array.len()),
                 ));
             };
 
-            array.push(value.next()?);
+            array.push(value);
         }
 
         match array.into_inner() {
@@ -721,11 +717,7 @@ where
         let index = it.index();
         let mut array = ArrayVec::<T, N>::new();
 
-        while let Some(mut value) = it.next() {
-            let Some(value) = T::try_from_input(&mut value)? else {
-                return Ok(None);
-            };
-
+        while let Some(value) = it.next::<T>()? {
             if let Err(..) = array.try_push(value) {
                 return Err(IStrError::new(
                     index..it.index(),
@@ -752,11 +744,7 @@ where
         let index = it.index();
         let mut array = ConstGenericRingBuffer::new();
 
-        while let Some(mut value) = it.next() {
-            let Some(value) = T::try_from_input(&mut value)? else {
-                return Ok(None);
-            };
-
+        while let Some(value) = it.next()? {
             if array.is_full() {
                 return Err(IStrError::new(
                     index..it.index(),
