@@ -77,15 +77,25 @@ impl IStr {
 
     /// Split `N` times.
     #[inline]
-    pub fn splitn(&mut self, byte: u8) -> impl InputIterator + '_ {
-        return SplitN { input: self, byte };
+    pub fn split<'a, F>(&'a mut self, finder: F) -> impl InputIterator + 'a
+    where
+        F: 'a + Fn(&[u8]) -> Option<(usize, usize)>,
+    {
+        return SplitInputIterator {
+            input: self,
+            finder,
+        };
 
-        struct SplitN<'a> {
+        /// Input iterator produced by [IStr::split].
+        struct SplitInputIterator<'a, F> {
             input: &'a mut IStr,
-            byte: u8,
+            finder: F,
         }
 
-        impl<'a> InputIterator for SplitN<'a> {
+        impl<'a, F> InputIterator for SplitInputIterator<'a, F>
+        where
+            F: Fn(&[u8]) -> Option<(usize, usize)>,
+        {
             #[inline]
             fn index(&self) -> Size {
                 self.input.index
@@ -93,7 +103,7 @@ impl IStr {
 
             #[inline]
             fn next(&mut self) -> Option<IStr> {
-                self.input.split_once(self.byte)
+                self.input.split_once_at(|bytes| (self.finder)(bytes))
             }
         }
     }
@@ -216,20 +226,20 @@ impl IStr {
     #[inline]
     fn split_once_at<T>(&mut self, find: T) -> Option<IStr>
     where
-        T: FnOnce(&[u8]) -> Option<usize>,
+        T: FnOnce(&[u8]) -> Option<(usize, usize)>,
     {
         if self.data.is_empty() {
             return None;
         }
 
-        let Some(at) = find(self.data) else {
+        let Some((at, stride)) = find(self.data) else {
             self.index.advance(self.data.len());
             let data = mem::take(&mut self.data);
             return Some(IStr::new(data, self.index));
         };
 
         let data = self.data.get(..at)?;
-        let n = at.checked_add(1)?;
+        let n = at.checked_add(stride)?;
         let index = self.index.checked_add(Size::new(n))?;
         self.advance(n);
         Some(IStr::new(data, index))
@@ -238,7 +248,7 @@ impl IStr {
     /// Split once at the given byte or until the end of string, returning the new IStr associated with the split.
     #[inline]
     fn split_once(&mut self, b: u8) -> Option<IStr> {
-        self.split_once_at(|data| memchr::memchr(b, data))
+        self.split_once_at(|data| Some((memchr::memchr(b, data)?, 1)))
     }
 
     /// Find by predicate.
@@ -602,15 +612,43 @@ where
 
 /// Split once on byte `D`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Split<const D: char, T>(pub T);
+pub struct Split<const D0: char, T>(pub T);
 
-impl<const D: char, T> FromInput for Split<D, T>
+impl<const D0: char, T> FromInput for Split<D0, T>
 where
     T: FromInputIter,
 {
     #[inline]
     fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
-        let mut it = p.splitn(D as u8);
+        let mut string = [0u8; 4];
+        let string = D0.encode_utf8(&mut string);
+        let finder = memchr::memmem::Finder::new(string);
+        let mut it = p.split(|bytes| Some((finder.find(bytes)?, string.len())));
+
+        let Some(out) = T::from_input_iter(&mut it)? else {
+            return Ok(None);
+        };
+
+        Ok(Some(Self(out)))
+    }
+}
+
+/// Split on pair of characters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Split2<const D0: char, const D1: char, T>(pub T);
+
+impl<const D0: char, const D1: char, T> FromInput for Split2<D0, D1, T>
+where
+    T: FromInputIter,
+{
+    #[inline]
+    fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
+        let mut string = [0u8; 8];
+        let d0 = D0.encode_utf8(&mut string[0..]).len();
+        let d1 = D1.encode_utf8(&mut string[d0..]).len();
+        let string = &string[..d0 + d1];
+        let finder = memchr::memmem::Finder::new(string);
+        let mut it = p.split(|bytes| Some((finder.find(bytes)?, string.len())));
 
         let Some(out) = T::from_input_iter(&mut it)? else {
             return Ok(None);
