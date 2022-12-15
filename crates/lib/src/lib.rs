@@ -49,7 +49,7 @@ macro_rules! ensure {
 pub mod prelude {
     //! Helper prelude with useful imports.
     pub use crate::input::{
-        Digits, IStr, InputIterator, Nl, NonEmpty, Range, Split, Split2, Ws, B, W,
+        Digits, IStr, InputIterator, Nl, NonEmpty, Range, Skip, Split, Split2, Ws, B, W,
     };
     pub use anyhow::{self, Context, Error, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
