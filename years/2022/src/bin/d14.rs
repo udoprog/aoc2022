@@ -2,11 +2,20 @@ use lib::prelude::*;
 
 const CAP: usize = 800;
 const SAND: Point = Point { x: 500, y: 0 };
+const STACK_CAP: usize = 1024;
 
 #[entry(input = "d14.txt", expect = (1072, 24659))]
 fn main(mut input: IStr) -> Result<(u32, u32)> {
+    // Bitset keeping track of blocked tiles.
     let mut grid = [0u128; { CAP / 128 } * CAP];
+
+    // Calculate floor, whether it be for part 2 or what counts as the infinite
+    // limit.
     let mut floor = 0;
+
+    // Stack that keeps track of the last drop position we deviated from so that
+    // we can backtrack without having to re-run the simulation.
+    let mut stack = ArrayVec::<Point, STACK_CAP>::new();
 
     while let Some(mut line) = input.try_line::<IStr>()? {
         let mut it = line.split(b"->");
@@ -17,13 +26,9 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
         while let Some(to) = it.next::<Point>()? {
             floor = floor.max(to.y);
 
-            if last.y != to.y {
-                for c in (last.y.min(to.y)..=last.y.max(to.y)).map(move |y| Point { x: to.x, y }) {
-                    grid.set_bit(index(c));
-                }
-            } else {
-                for c in (last.x.min(to.x)..=last.x.max(to.x)).map(move |x| Point { x, y: to.y }) {
-                    grid.set_bit(index(c));
+            for x in last.x.min(to.x)..=last.x.max(to.x) {
+                for y in last.y.min(to.y)..=last.y.max(to.y) {
+                    grid.set_bit(index(Point { x, y }));
                 }
             }
 
@@ -37,12 +42,13 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut part1 = 0;
     let mut part2 = 0;
 
-    loop {
-        let mut s = SAND;
+    stack.push(SAND);
 
+    while let Some(mut s) = stack.pop() {
         'falling: while s.y <= floor {
             for n in neigh(&s)? {
                 if !grid.test_bit(index(n)) {
+                    stack.push(s);
                     s = n;
                     continue 'falling;
                 }
