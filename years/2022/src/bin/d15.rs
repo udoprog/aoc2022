@@ -4,12 +4,12 @@ type Line = Split2<':', ' ', (([W; 2], Point), ([W; 4], Point))>;
 
 const QUERY: i32 = 2_000_000;
 const WIDTH: i32 = 4_000_000;
-const BEACONS: usize = 40;
+const BEACONS: usize = 64;
 
 #[entry(input = "d15.txt", expect = (4873353, 11600823139120))]
 fn main(mut input: IStr) -> Result<(u32, u64)> {
     // Spans of beacons relative to current row.
-    let mut buf = ArrayVec::<_, BEACONS>::new();
+    let mut buf = [(i32::MIN, i32::MAX); BEACONS];
     // Computed distances which gives an idea of the covering span of a beacon.
     let mut computed = ArrayVec::<_, BEACONS>::new();
 
@@ -27,7 +27,7 @@ fn main(mut input: IStr) -> Result<(u32, u64)> {
     let mut part1 = 0;
     let mut x = i32::MIN;
 
-    for &(s, e) in spans(QUERY, &mut buf, &computed) {
+    for &(s, e) in spans(QUERY, &mut buf, &computed)? {
         part1 += (e - x.max(s)).max(0) as u32;
         x = e.max(x);
     }
@@ -37,7 +37,7 @@ fn main(mut input: IStr) -> Result<(u32, u64)> {
     for y in 0..=(WIDTH as i32) {
         let mut x = 0;
 
-        for &(s, e) in spans(y, &mut buf, &computed) {
+        for &(s, e) in spans(y, &mut buf, &computed)? {
             if (s..=e).contains(&x) {
                 x = e + 1;
             }
@@ -54,23 +54,26 @@ fn main(mut input: IStr) -> Result<(u32, u64)> {
 
 /// Build a collection of covered spans for the given row `y`, and sort by
 /// starting position.
-fn spans<'a, const N: usize>(
+#[inline]
+fn spans<'a>(
     y: i32,
-    buf: &'a mut ArrayVec<(i32, i32), N>,
+    buf: &'a mut [(i32, i32)],
     computed: &[(Point, i32)],
-) -> &'a [(i32, i32)] {
-    buf.clear();
+) -> Result<&'a [(i32, i32)]> {
+    let mut len = 0;
 
     for (a, d) in computed {
         let w = d - (y - a.y).abs();
 
         if w >= 0 {
-            buf.push((a.x - w, a.x + w));
+            let o = buf.get_mut(len).context("missing index")?;
+            *o = (a.x - w, a.x + w);
+            len += 1;
         }
     }
 
-    buf.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-    &buf[..]
+    buf[..len].sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    Ok(&buf[..len])
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
