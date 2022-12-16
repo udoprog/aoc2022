@@ -58,7 +58,7 @@ pub mod prelude {
     pub use crate::ext::SliceExt;
     pub use crate::grid::{Grid, GridExt, GridMut, GridSliceMut, GridSliceRef};
     pub use crate::{bail, ensure};
-    pub use bittle::{set as bits, Bits, BitsMut, BitsOwned};
+    pub use bittle::{set as bits, Bits, BitsMut, BitsOwned, Set};
     pub use bstr::{BStr, ByteSlice};
     pub use fixed_heap::FixedHeap;
     pub use log::*;
