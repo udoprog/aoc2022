@@ -8,10 +8,10 @@ fn main(mut input: IStr) -> Result<(i32, ArrayString<8>)> {
 
     let mut screen = [b'.'; 40 * 6];
 
-    while let Some((W(line), arg)) = input.try_line::<(W<&BStr>, Option<i32>)>()? {
-        let ops = match (line.as_ref(), arg) {
-            (b"noop", _) => [Some(0), None],
-            (b"addx", Some(n)) => [Some(0), Some(n)],
+    while let Some((W(line), arg)) = input.try_line::<(W<&str>, Option<i32>)>()? {
+        let ops = match (line, arg) {
+            ("noop", _) => [Some(0), None],
+            ("addx", Some(n)) => [Some(0), Some(n)],
             (other, _) => {
                 bail!(other)
             }
