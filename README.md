@@ -6,6 +6,7 @@ The project is organized in one crate per year under the `years` directory.
 
 * [years/2021](years/2021)
 * [years/2022](years/2022)
+* [years/2023](years/2023)
 * [years/2024](years/2024)
 
 Each crate has an `inputs` folder, which is where the tool will look for inputs.
