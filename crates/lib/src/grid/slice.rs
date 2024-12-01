@@ -9,7 +9,7 @@ use core::slice;
 use crate::grid::{Grid, GridExt, GridMut, GridSliceMut, GridSliceRef};
 
 #[derive(Clone, Copy)]
-pub(self) struct Dims {
+struct Dims {
     rows: usize,
     columns: usize,
     stride: usize,
@@ -437,11 +437,7 @@ pub struct SliceGrid<'a, T> {
 impl<'a, T> Clone for SliceGrid<'a, T> {
     #[inline]
     fn clone(&self) -> Self {
-        Self {
-            data: self.data,
-            dims: self.dims,
-            _marker: PhantomData,
-        }
+        *self
     }
 }
 

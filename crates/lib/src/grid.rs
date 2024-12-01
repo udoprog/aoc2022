@@ -5,7 +5,7 @@ mod sealed {
     impl<T> Sealed for [T] {}
 }
 
-pub(self) use self::sealed::Sealed;
+use self::sealed::Sealed;
 
 pub trait GridExt<T>: Sealed {
     /// Return value as an immutable grid.

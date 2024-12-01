@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::bencher::Bencher;
 pub use self::error::error_context;
-pub(self) use self::output::{Output, OutputKind};
+use self::output::{Output, OutputKind};
 pub use self::output_eq::OutputEq;
 
 static STDOUT_LOGGER: stdout_logger::StdoutLogger = stdout_logger::StdoutLogger;
@@ -235,20 +235,6 @@ impl fmt::Display for Report {
                     write!(f, "?")
                 }
             }
-        }
-    }
-}
-
-struct Maybe<'a, T>(&'a Option<T>);
-
-impl<T> fmt::Display for Maybe<'_, T>
-where
-    T: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {
-            Some(value) => value.fmt(f),
-            None => "-".fmt(f),
         }
     }
 }

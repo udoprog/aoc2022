@@ -2,29 +2,9 @@ use proc_macro::{Delimiter, Ident, Literal, Punct, Spacing, Span, TokenTree};
 
 use crate::token_stream::TokenStream;
 
-/// Override the current span.
-pub(crate) struct WithSpan<T>(T, Span);
-
-impl<T> IntoTokens for WithSpan<T>
-where
-    T: IntoTokens,
-{
-    #[inline]
-    fn into_tokens(self, stream: &mut TokenStream, _: Span) {
-        self.0.into_tokens(stream, self.1);
-    }
-}
-
 pub(crate) trait IntoTokens {
     /// Convert into tokens.
     fn into_tokens(self, stream: &mut TokenStream, span: Span);
-
-    fn with_span(self, span: Span) -> WithSpan<Self>
-    where
-        Self: Sized,
-    {
-        WithSpan(self, span)
-    }
 }
 
 impl IntoTokens for TokenStream {
@@ -163,16 +143,6 @@ where
     T: IntoTokens,
 {
     Group(Delimiter::Brace, inner)
-}
-
-struct StringLiteral<'a>(&'a str);
-
-impl IntoTokens for StringLiteral<'_> {
-    fn into_tokens(self, stream: &mut TokenStream, span: Span) {
-        let mut literal = Literal::string(self.0);
-        literal.set_span(span);
-        stream.push(TokenTree::Literal(literal));
-    }
 }
 
 #[derive(Clone)]

@@ -16,7 +16,7 @@ use ringbuffer::ConstGenericRingBuffer;
 pub use self::error::{Custom, ErrorKind, IStrError};
 pub use self::iter::Iter;
 
-pub(self) type Result<T> = std::result::Result<T, IStrError>;
+type Result<T> = std::result::Result<T, IStrError>;
 pub use self::input_iter::InputIterator;
 use crate::env::Size;
 
@@ -718,7 +718,7 @@ where
         let mut array = ArrayVec::<T, N>::new();
 
         while let Some(value) = it.next::<T>()? {
-            if let Err(..) = array.try_push(value) {
+            if array.try_push(value).is_err() {
                 return Err(IStrError::new(
                     index..it.index(),
                     ErrorKind::ArrayCapacity(N),

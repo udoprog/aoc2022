@@ -117,7 +117,7 @@ impl ItemOutput {
     }
 }
 
-fn bencher<'a, C: 'a>(m: Mod, call: C, compare: Compare<'a>) -> impl IntoTokens + 'a
+fn bencher<'a, C>(m: Mod, call: C, compare: Compare<'a>) -> impl IntoTokens + 'a
 where
     C: IntoTokens + 'a,
 {
