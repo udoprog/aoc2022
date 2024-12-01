@@ -3,5 +3,8 @@ name = "y2022"
 version = "0.0.0"
 edition = "2021"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(aoc_print)'] }
+
 [dependencies]
 lib = { path = "../../crates/lib" }

@@ -9,7 +9,7 @@ use core::mem;
 use core::ops;
 use core::str::from_utf8;
 
-use arrayvec::ArrayVec;
+use arrayvec::{ArrayString, ArrayVec};
 use bstr::BStr;
 use ringbuffer::ConstGenericRingBuffer;
 
@@ -582,11 +582,25 @@ where
         let mut output = ArrayVec::new();
 
         while let Some(element) = T::try_from_input(p)? {
-            if output.remaining_capacity() == 0 {
+            if output.try_push(element).is_err() {
                 return Err(IStrError::new(index..p.index, ErrorKind::ArrayCapacity(N)));
             }
+        }
 
-            output.push(element);
+        Ok(Some(output))
+    }
+}
+
+impl<const N: usize> FromInput for ArrayString<N> {
+    #[inline]
+    fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
+        let index = p.index;
+        let mut output = ArrayString::new();
+
+        while let Some(element) = char::try_from_input(p)? {
+            if output.try_push(element).is_err() {
+                return Err(IStrError::new(index..p.index, ErrorKind::StringCapacity(N)));
+            }
         }
 
         Ok(Some(output))
