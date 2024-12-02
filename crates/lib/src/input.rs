@@ -71,7 +71,7 @@ impl IStr {
 
     /// Cosntruct an iterator over the current input.
     #[inline]
-    pub fn iter<T>(&mut self) -> Iter<'_, T> {
+    pub fn iter<T>(self) -> Iter<T> {
         Iter::new(self)
     }
 
@@ -528,6 +528,7 @@ where
 }
 
 /// Consume whitespace and return the number of lines consumed.
+#[derive(Debug)]
 pub struct Ws(pub usize);
 
 impl FromInput for Ws {

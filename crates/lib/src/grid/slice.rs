@@ -1,6 +1,7 @@
 mod iter;
 pub use self::iter::{ColumnIter, ColumnIterMut, Columns, ColumnsMut, Rows, RowsMut};
 
+use core::fmt;
 use core::marker::PhantomData;
 use core::mem;
 use core::ptr;
@@ -101,6 +102,16 @@ impl<T> AsRef<[T]> for Row<'_, T> {
     fn as_ref(&self) -> &[T] {
         // SAFETY: the layout of a row is exactly compatible with a slice.
         unsafe { row_slice_ref(self.data, self.dims, self.row) }
+    }
+}
+
+impl<T> fmt::Debug for Row<'_, T>
+where
+    T: fmt::Debug,
+{
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.iter()).finish()
     }
 }
 

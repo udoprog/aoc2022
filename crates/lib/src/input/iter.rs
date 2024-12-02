@@ -3,13 +3,13 @@ use std::marker::PhantomData;
 use crate::input::{FromInput, IStr, IStrError};
 
 /// Iterator over an [Input].
-pub struct Iter<'a, T> {
-    input: &'a mut IStr,
+pub struct Iter<T> {
+    input: IStr,
     _marker: PhantomData<T>,
 }
 
-impl<'a, T> Iter<'a, T> {
-    pub(crate) fn new(input: &'a mut IStr) -> Self {
+impl<T> Iter<T> {
+    pub(crate) fn new(input: IStr) -> Self {
         Self {
             input,
             _marker: PhantomData,
@@ -17,7 +17,7 @@ impl<'a, T> Iter<'a, T> {
     }
 }
 
-impl<'a, T> Iterator for Iter<'a, T>
+impl<T> Iterator for Iter<T>
 where
     T: FromInput,
 {
