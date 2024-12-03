@@ -63,6 +63,28 @@ impl IStr {
         self.data
     }
 
+    /// Test if we match the given literal and consume it.
+    #[inline]
+    pub fn eat(&mut self, bytes: impl AsRef<[u8]>) -> bool {
+        let bytes = bytes.as_ref();
+
+        if !self.data.starts_with(bytes) {
+            return false;
+        }
+
+        self.data = self.data.get(bytes.len()..).unwrap_or_default();
+        self.index = self.index.saturating_add(Size::new(bytes.len()));
+        true
+    }
+
+    /// Peek at the next byte.
+    ///
+    /// If there are no more bytes, returns `\0`.
+    #[inline]
+    pub fn at(&self) -> u8 {
+        self.data.first().copied().unwrap_or(0)
+    }
+
     /// Get remaining binary string of the input.
     #[inline]
     pub fn as_bstr(&self) -> &BStr {
@@ -274,8 +296,9 @@ impl IStr {
         n
     }
 
+    /// Advance the input by n bytes.
     #[inline]
-    fn advance(&mut self, n: usize) {
+    pub fn advance(&mut self, n: usize) {
         self.data = self.data.get(n..).unwrap_or_default();
         self.index = self.index.saturating_add(Size::new(n));
     }
@@ -407,7 +430,7 @@ macro_rules! integer {
             fn try_from_input(p: &mut IStr) -> Result<Option<Self>> {
                 let index = p.index;
 
-                let Some((n, string)) = p.try_next_word()? else {
+                let Some((n, string)) = p.try_next_with(|b| !b.is_ascii_digit())? else {
                     return Ok(None);
                 };
 

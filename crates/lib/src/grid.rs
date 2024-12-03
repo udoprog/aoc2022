@@ -122,6 +122,7 @@ pub trait Grid<T> {
 
     /// Get the element at the given row and column.
     #[inline]
+    #[track_caller]
     fn get(&self, row: usize, column: usize) -> &T {
         match self.row(row).and_then(|row| row.into_ref(column)) {
             Some(value) => value,
