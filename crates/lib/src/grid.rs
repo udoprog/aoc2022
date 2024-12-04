@@ -5,6 +5,8 @@ mod sealed {
     impl<T> Sealed for [T] {}
 }
 
+use arrayvec::ArrayVec;
+
 use self::sealed::Sealed;
 
 pub trait GridExt<T>: Sealed {
@@ -134,6 +136,29 @@ pub trait Grid<T> {
     #[inline]
     fn try_get(&self, row: usize, column: usize) -> Option<&T> {
         self.row(row)?.into_ref(column)
+    }
+
+    /// Collect an iterator of rows and columns into an array.
+    ///
+    /// This collects up until the array is full, an incorrect index is
+    /// encountered, or the iterator completes.
+    #[inline]
+    fn collect<const N: usize>(
+        &self,
+        it: impl IntoIterator<Item = (usize, usize)>,
+    ) -> ArrayVec<T, N>
+    where
+        T: Copy,
+    {
+        let mut values = ArrayVec::new();
+
+        for (col, row) in it {
+            if let Some(value) = self.try_get(row, col) {
+                _ = values.try_push(*value);
+            }
+        }
+
+        values
     }
 }
 
