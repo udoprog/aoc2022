@@ -86,6 +86,9 @@ pub struct Row<'a, T> {
     _marker: PhantomData<&'a [T]>,
 }
 
+unsafe impl<T> Send for Row<'_, T> where T: Send {}
+unsafe impl<T> Sync for Row<'_, T> where T: Sync {}
+
 impl<'a, T> Row<'a, T> {
     fn new(data: ptr::NonNull<[T]>, dims: &'a Dims, row: usize) -> Self {
         Self {
@@ -358,6 +361,9 @@ pub struct SliceGridMut<'a, T> {
     _marker: PhantomData<&'a mut [T]>,
 }
 
+unsafe impl<T> Send for SliceGridMut<'_, T> where T: Send {}
+unsafe impl<T> Sync for SliceGridMut<'_, T> where T: Sync {}
+
 impl<'a, T> Grid<T> for SliceGridMut<'a, T> {
     type Row<'this> = Row<'this, T> where Self: 'this;
     type Column<'this> = Column<'this, T> where Self: 'this;
@@ -444,6 +450,9 @@ pub struct SliceGrid<'a, T> {
     dims: Dims,
     _marker: PhantomData<&'a [T]>,
 }
+
+unsafe impl<T> Send for SliceGrid<'_, T> where T: Send {}
+unsafe impl<T> Sync for SliceGrid<'_, T> where T: Sync {}
 
 impl<'a, T> Clone for SliceGrid<'a, T> {
     #[inline]

@@ -19,7 +19,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
 
                 if let Some(f) = y.checked_sub(3) {
                     values.try_push(g.collect(repeat(x).zip((f..=y).rev())))?;
-                    values.try_push(g.collect((x..=x + 3).zip((f..=f + 3).rev())))?;
+                    values.try_push(g.collect((x..).zip((f..=f + 3).rev())))?;
                 }
 
                 if let Some(f) = x.checked_sub(3) {
@@ -31,12 +31,12 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
                     values.try_push(g.collect((x..=x + 3).rev().zip((y..=y + 3).rev())))?;
                 }
 
-                values.try_push(g.collect((x..).take(4).zip(repeat(y))))?;
-                values.try_push(g.collect(repeat(x).zip(y..).take(4)))?;
-                values.try_push(g.collect((x..).zip(y..).take(4)))?;
+                values.try_push(g.collect((x..).zip(repeat(y))))?;
+                values.try_push(g.collect(repeat(x).zip(y..)))?;
+                values.try_push(g.collect((x..).zip(y..)))?;
 
                 for value in values {
-                    o1 += u32::from(value.as_slice() == b"XMAS");
+                    o1 += u32::from(&value[..] == b"XMAS");
                 }
             }
 
@@ -46,8 +46,8 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
                     continue;
                 };
 
-                let a = g.collect::<3>((x..=x + 2).zip(y..=y + 2));
-                let b = g.collect::<3>((x..=x + 2).rev().zip(y..=y + 2));
+                let a = g.collect::<3>((x..).zip(y..));
+                let b = g.collect::<3>((x..=x + 2).rev().zip(y..));
 
                 o2 += u32::from(matches!(
                     (&a[..], &b[..]),

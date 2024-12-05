@@ -152,9 +152,13 @@ pub trait Grid<T> {
     {
         let mut values = ArrayVec::new();
 
-        for (col, row) in it {
-            if let Some(value) = self.try_get(row, col) {
-                _ = values.try_push(*value);
+        for (column, row) in it {
+            let Some(value) = self.try_get(row, column) else {
+                break;
+            };
+
+            if values.try_push(*value).is_err() {
+                break;
             }
         }
 
