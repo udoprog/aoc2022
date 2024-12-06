@@ -19,13 +19,6 @@ pub mod env;
 pub mod env;
 
 #[macro_export]
-macro_rules! bail {
-    ($expr:expr) => {
-        Err($crate::input::ErrorKind::from($expr))?
-    };
-}
-
-#[macro_export]
 macro_rules! ensure {
     ($condition:expr) => {
         if !$condition {
@@ -51,13 +44,13 @@ pub mod prelude {
     pub use crate::input::{
         Digits, IStr, InputIterator, Nl, NonEmpty, Range, Skip, Split, Split2, Ws, B, W,
     };
-    pub use anyhow::{self, Context, Error, Result};
+    pub use anyhow::{self, bail, Context, Error, Result};
     pub type ArrayVec<T, const N: usize = 16> = arrayvec::ArrayVec<T, N>;
     pub type ArrayString<const N: usize = 16> = arrayvec::ArrayString<N>;
     pub use crate::arena::{AllocIter, Arena, ArenaAllocError, ArenaWriteSliceOutOfBounds};
+    pub use crate::ensure;
     pub use crate::ext::SliceExt;
     pub use crate::grid::{Grid, GridExt, GridMut, GridSliceMut, GridSliceRef};
-    pub use crate::{bail, ensure};
     pub use bittle::{set as bits, Bits, BitsMut, BitsOwned, Set};
     pub use bstr::{BStr, ByteSlice};
     pub use fixed_heap::FixedHeap;
