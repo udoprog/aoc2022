@@ -5,7 +5,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut o1 = 0;
     let mut o2 = 0;
 
-    while let Some(value) = input.try_line::<ArrayString<64>>()? {
+    while let Some(value) = input.line::<Option<ArrayString<64>>>()? {
         let mut f1 = 0;
         let mut l1 = 0;
         let mut f2 = 0;

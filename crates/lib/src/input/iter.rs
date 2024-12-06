@@ -25,6 +25,6 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.input.try_next().transpose()
+        Option::<T>::from_input(&mut self.input).transpose()
     }
 }

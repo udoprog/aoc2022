@@ -5,7 +5,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut part1 = 0;
     let mut part2 = 0;
 
-    while let Some(Split((a, b))) = input.try_line::<Split<',', (Span, Span)>>()? {
+    while let Some(Split((a, b))) = input.line::<Option<Split<',', (Span, Span)>>>()? {
         if a.start >= b.start && a.end <= b.end || b.start >= a.start && b.end <= a.end {
             part1 += 1;
         }

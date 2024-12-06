@@ -22,7 +22,7 @@ fn main(mut input: IStr) -> Result<(u32, usize)> {
     let mut div1 = usize::from(DIV1 > DIV2) + 1;
     let mut div2 = usize::from(DIV2 > DIV1) + 1;
 
-    while let Some(mut a) = input.try_line::<IStr>()? {
+    while let Some(mut a) = input.line::<Option<IStr>>()? {
         n += 1;
         let mut b = input.line::<IStr>()?;
 

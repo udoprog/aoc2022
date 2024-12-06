@@ -7,11 +7,11 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let part1 = 0;
     let part2 = 0;
 
-    while let Some(title) = input.try_line::<&str>()? {
+    while let Some(title) = input.line::<Option<&str>>()? {
         info!("{title}");
         let first = input.line::<Coord>()?;
 
-        while let Some(c) = input.try_line::<Coord>()? {
+        while let Some(c) = input.line::<Option<Coord>>()? {
             let c = c - first;
             info!("{},{},{}", c.x, c.y, c.z);
         }

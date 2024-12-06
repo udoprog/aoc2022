@@ -15,7 +15,7 @@ fn main(mut input: IStr) -> Result<(u16, u16)> {
 
     let mut alloc = Alloc::default();
 
-    while let Some(Split((mut a, mut b))) = input.try_line::<Split<';', (IStr, IStr)>>()? {
+    while let Some(Split((mut a, mut b))) = input.line::<Option<Split<';', (IStr, IStr)>>>()? {
         let (_, W(pos), _, _, _, Split((_, flow))) =
             a.next::<(W, W<Point>, W, W, Ws, Split<'=', (Skip, u16)>)>()?;
         let (_, _, Split2(points)) =

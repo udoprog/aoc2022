@@ -8,19 +8,19 @@ macro_rules! from_input {
     (|[$($value:tt)*]: $ty:ty| -> $out:ident $block:block) => {
         impl $crate::input::FromInput for $out {
             #[inline]
-            fn try_from_input(
+            fn from_input(
                 p: &mut $crate::input::IStr,
-            ) -> core::result::Result<Option<Self>, $crate::input::IStrError> {
+            ) -> core::result::Result<Self, $crate::input::IStrError> {
                 let index = p.index();
 
-                let Some(value) = $crate::input::FromInput::try_from_input(p)? else {
-                    return Ok(None);
+                let Some(value) = $crate::input::FromInput::from_input(p)? else {
+                    return $crate::input::FromInput::from_empty(p);
                 };
 
                 match (|$($value)*: $ty| -> core::result::Result<$out, $crate::input::ErrorKind> {
                     $block
                 })(value) {
-                    Ok(value) => Ok(Some(value)),
+                    Ok(value) => Ok(value),
                     Err(kind) => Err($crate::input::IStrError::new(index..p.index(), kind)),
                 }
             }

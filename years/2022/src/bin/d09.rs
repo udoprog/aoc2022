@@ -15,7 +15,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     part1.set_bit(pos(knots[0]));
     part2.set_bit(pos(knots[0]));
 
-    while let Some((B(m), b)) = input.try_line::<(B, usize)>()? {
+    while let Some((B(m), b)) = input.line::<Option<(B, usize)>>()? {
         let m = match m {
             b'R' => (1, 0),
             b'U' => (0, -1),

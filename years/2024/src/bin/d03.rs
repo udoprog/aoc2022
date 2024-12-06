@@ -19,7 +19,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
         }
 
         if input.eat(b"mul(") {
-            let Some(a) = input.try_next::<u32>()? else {
+            let Some(a) = input.next::<Option<u32>>()? else {
                 continue;
             };
 
@@ -27,7 +27,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
                 continue;
             }
 
-            let Some(b) = input.try_next::<u32>()? else {
+            let Some(b) = input.next::<Option<u32>>()? else {
                 continue;
             };
 

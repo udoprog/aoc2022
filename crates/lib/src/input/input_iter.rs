@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 use crate::env::Size;
 use crate::input::{IStr, Result};
 
@@ -25,11 +27,20 @@ pub trait InputIterator {
             return Ok(None);
         };
 
-        let Some(value) = T::try_from_input(&mut value)? else {
-            return Ok(None);
-        };
-
+        let value = T::from_input(&mut value)?;
         Ok(Some(value))
+    }
+
+    #[inline]
+    fn iter<T>(self) -> Iter<Self, T>
+    where
+        Self: Sized,
+        T: FromInput,
+    {
+        Iter {
+            iter: self,
+            _phantom: PhantomData,
+        }
     }
 
     /// Get next input.
@@ -74,5 +85,24 @@ where
     #[inline]
     fn next_input(&mut self) -> Option<IStr> {
         (**self).next_input()
+    }
+}
+
+/// A typed iterator over an [`InputIterator`].
+pub struct Iter<I, T> {
+    iter: I,
+    _phantom: PhantomData<T>,
+}
+
+impl<I, T> Iterator for Iter<I, T>
+where
+    I: InputIterator,
+    T: FromInput,
+{
+    type Item = Result<T>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().transpose()
     }
 }

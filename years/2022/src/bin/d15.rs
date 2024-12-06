@@ -13,7 +13,7 @@ fn main(mut input: IStr) -> Result<(u32, u64)> {
     // Computed distances which gives an idea of the covering span of a beacon.
     let mut computed = ArrayVec::<_, BEACONS>::new();
 
-    while let Some(Split2(((_, a), (_, b)))) = input.try_line::<Line>()? {
+    while let Some(Split2(((_, a), (_, b)))) = input.line::<Option<Line>>()? {
         computed.push((a, (b.x - a.x).abs() + (b.y - a.y).abs()));
     }
 

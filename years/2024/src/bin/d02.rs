@@ -7,7 +7,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut o1 = 0;
     let mut o2 = 0;
 
-    while let Some(values) = input.try_line::<ArrayVec<u32>>()? {
+    while let Some(values) = input.line::<Option<ArrayVec<u32>>>()? {
         if values.is_empty() {
             break;
         }

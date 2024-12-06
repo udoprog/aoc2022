@@ -34,7 +34,7 @@ where
     let mut stack = ArrayVec::<u64, S>::new();
     stack.push(0u64);
 
-    while let Some(line) = input.try_line::<&str>()? {
+    while let Some(line) = input.line::<Option<&str>>()? {
         let (a, rest) = line.split_once(' ').context("first")?;
 
         match (a, rest) {

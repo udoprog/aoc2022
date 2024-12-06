@@ -7,12 +7,12 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut part1 = 0;
     let mut part2 = 0;
 
-    while let Some(W(data)) = input.try_line::<W<&[u8]>>()? {
+    while let Some(W(data)) = input.line::<Option<W<&[u8]>>>()? {
         let (first, second) = data.split_at(data.len() / 2);
         part1 += (set(first) & set(second)).trailing_zeros();
     }
 
-    while let Some((S(a), S(b), S(c))) = input2.try_next::<(S, S, S)>()? {
+    while let Some((S(a), S(b), S(c))) = input2.next::<Option<(S, S, S)>>()? {
         part2 += (a & b & c).trailing_zeros();
     }
 

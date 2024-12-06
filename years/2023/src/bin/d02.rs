@@ -7,7 +7,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     let mut o1 = 0;
     let mut o2 = 0;
 
-    while let Some(value) = input.try_line::<ArrayString<256>>()? {
+    while let Some(value) = input.line::<Option<ArrayString<256>>>()? {
         let Some((game, rest)) = value.split_once(": ") else {
             continue;
         };

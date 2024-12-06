@@ -1,7 +1,7 @@
 use lib::prelude::*;
 
 #[entry(input = "d01.txt", expect = (2086478, 24941624))]
-fn main(mut input: IStr) -> Result<(u32, u32)> {
+fn main(input: IStr) -> Result<(u32, u32)> {
     let mut a = ArrayVec::<u32, 1024>::new();
     let mut b = ArrayVec::<u32, 1024>::new();
 

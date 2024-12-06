@@ -17,7 +17,7 @@ fn main(mut input: IStr) -> Result<(u32, u32)> {
     // we can backtrack without having to re-run the simulation.
     let mut stack = ArrayVec::<Point, STACK_CAP>::new();
 
-    while let Some(mut line) = input.try_line::<IStr>()? {
+    while let Some(line) = input.line::<Option<IStr>>()? {
         let mut it = line.split(b"->");
         let mut last = it.next::<Point>()?.context("missing first")?;
 

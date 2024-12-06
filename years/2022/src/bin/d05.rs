@@ -4,7 +4,7 @@ use lib::prelude::*;
 fn main(mut input: IStr) -> Result<(ArrayString, ArrayString)> {
     let mut stacks1 = ArrayVec::<ArrayVec<_, 128>, 10>::new();
 
-    while let Some(line) = input.try_line::<IStr>()?.filter(|s| !s.is_empty()) {
+    while let Some(line) = input.line::<Option<IStr>>()?.filter(|s| !s.is_empty()) {
         for (n, chunk) in line.as_bstr().chunks(4).enumerate() {
             if let Some(&d) = chunk.get(1).filter(|d| d.is_ascii_uppercase()) {
                 for _ in stacks1.len()..=n {

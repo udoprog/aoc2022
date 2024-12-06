@@ -21,7 +21,7 @@ fn main(mut input: IStr) -> Result<(u64, u64)> {
 
     let mut factors = 1;
 
-    while let Some(..) = input.try_next::<(W, W, Ws)>()? {
+    while input.next::<Option<(W, W, Ws)>>()?.is_some() {
         let (_, Split(items)) = input.line::<([W; 2], Split<',', ArrayRingBuffer<_, QUEUE>>)>()?;
         let (_, op, operand, _, div, _, if_true, _, if_false) =
             input.next::<([W; 4], _, _, [W; 3], _, [W; 5], _, [W; 5], _)>()?;
